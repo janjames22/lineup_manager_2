@@ -9,7 +9,7 @@ const navLink = ({ isActive }) =>
 
 export default function Navbar() {
   return (
-    <header className="border-b border-slate-800/50 bg-slate-900/95 backdrop-blur-md sticky top-0 z-40 print:hidden">
+    <header className="border-b border-slate-800/50 bg-slate-900/95 backdrop-blur-md sticky top-0 z-40 print:hidden" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
         <Link to="/" className="flex items-center gap-3 group">
           <div className="relative size-10 overflow-hidden rounded-xl bg-slate-800 p-1 ring-1 ring-white/10 group-hover:ring-white/20 transition-all shadow-lg">
@@ -20,7 +20,7 @@ export default function Navbar() {
             <span className="block text-[10px] font-bold uppercase tracking-widest text-slate-500">Official App</span>
           </span>
         </Link>
-        <nav className="flex flex-wrap items-center gap-2">
+        <nav className="hidden items-center gap-2 lg:flex">
           <OfflineStatusBadge />
           <NavLink to="/" className={navLink}>
             <Home size={16} aria-hidden="true" /> Dashboard
@@ -35,6 +35,9 @@ export default function Navbar() {
             <Plus size={16} aria-hidden="true" /> Add Song
           </Link>
         </nav>
+        <div className="flex items-center gap-2 lg:hidden">
+          <OfflineStatusBadge />
+        </div>
       </div>
     </header>
   );

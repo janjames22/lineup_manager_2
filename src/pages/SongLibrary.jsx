@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import EmptyState from '../components/EmptyState';
 import PageHeader from '../components/PageHeader';
 import SongCard from '../components/SongCard';
+import LoadingScreen from '../components/LoadingScreen';
 import DownloadOfflineButton from '../components/DownloadOfflineButton';
 import { KEYS } from '../utils/constants';
 import { getSongs } from '../utils/storage';
@@ -33,8 +34,8 @@ export default function SongLibrary() {
     loadSongs();
   }, []);
 
-  const categories = [...new Set(songs.map((song) => song.category).filter(Boolean))];
-  const languages = [...new Set(songs.map((song) => song.language).filter(Boolean))];
+  const categories = useMemo(() => [...new Set(songs.map((song) => song.category).filter(Boolean))], [songs]);
+  const languages = useMemo(() => [...new Set(songs.map((song) => song.language).filter(Boolean))], [songs]);
 
   const filteredSongs = useMemo(() => {
     return songs.filter((song) => {
@@ -45,6 +46,8 @@ export default function SongLibrary() {
       return matchesQuery && matchesKey && matchesCategory && matchesLanguage;
     });
   }, [songs, query, keyFilter, category, language]);
+
+  if (loading) return <LoadingScreen />;
 
   return (
     <main className="page-shell">

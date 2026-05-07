@@ -22,8 +22,11 @@ export default function LyricsMonitor({ title, keyName, sections, index, onIndex
   const toggleTheme = () => setThemeIndex((prev) => (prev + 1) % themes.length);
 
   return (
-    <main className={`flex min-h-screen flex-col transition-colors duration-700 ease-in-out ${themes[themeIndex].classes}`}>
-      <div className="flex flex-col gap-3 border-b border-white/10 px-4 py-4 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 print:hidden">
+    <main className={`flex min-h-dvh flex-col transition-colors duration-700 ease-in-out ${themes[themeIndex].classes}`}>
+      <div 
+        className="flex flex-col gap-3 border-b border-white/10 px-4 py-4 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 print:hidden"
+        style={{ paddingTop: 'env(safe-area-inset-top, 1rem)' }}
+      >
         <div>
           <p className="text-sm font-medium tracking-wider text-amber-300 opacity-90">{keyName ? `KEY: ${keyName}` : 'LYRICS MONITOR'}</p>
           <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
@@ -55,7 +58,10 @@ export default function LyricsMonitor({ title, keyName, sections, index, onIndex
         </div>
       </section>
 
-      <div className="flex items-center justify-between border-t border-white/10 px-4 py-4 sm:px-6 print:hidden">
+      <div 
+        className="flex items-center justify-between border-t border-white/10 px-4 py-4 sm:px-6 print:hidden"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 1rem)' }}
+      >
         <button className="btn-dark" type="button" onClick={() => go(-1)} disabled={currentIndex === 0}>
           <ChevronLeft size={20} aria-hidden="true" /> Previous
         </button>

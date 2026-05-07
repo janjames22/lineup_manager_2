@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import EmptyState from '../components/EmptyState';
 import PageHeader from '../components/PageHeader';
+import LoadingScreen from '../components/LoadingScreen';
 import DownloadOfflineButton from '../components/DownloadOfflineButton';
 import { getLineups } from '../utils/storage';
 
@@ -26,6 +27,8 @@ export default function LineupList() {
     }
     loadLineups();
   }, []);
+  
+  if (loading) return <LoadingScreen />;
 
   return (
     <main className="page-shell">

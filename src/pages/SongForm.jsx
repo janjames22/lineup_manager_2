@@ -5,6 +5,7 @@ import PageHeader from '../components/PageHeader';
 import { KEYS, SECTION_TYPES } from '../utils/constants';
 import { getSongById, saveSong } from '../utils/storage';
 import { useOffline } from '../hooks/useOffline';
+import { useToast } from '../hooks/useToast';
 
 const blankSong = {
   title: '',
@@ -28,6 +29,7 @@ export default function SongForm() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const isOffline = useOffline();
+  const { showToast } = useToast();
 
   useEffect(() => {
     async function loadSong() {
@@ -68,11 +70,13 @@ export default function SongForm() {
     try {
       const saved = await saveSong(song);
       if (!saved?.id) throw new Error('Song was not saved.');
+      showToast(`Song "${song.title}" saved successfully!`, 'success');
       navigate('/songs');
     } catch (error) {
       console.error("Failed to save song:", error);
-      // Show the actual error message from Supabase or storage
-      setError(error.message || 'Unable to save this song. Please try again.');
+      const msg = error.message || 'Unable to save this song. Please try again.';
+      setError(msg);
+      showToast(msg, 'error');
     } finally {
       setSaving(false);
     }
@@ -171,7 +175,7 @@ export default function SongForm() {
 
           <div className="space-y-4">
             {song.lyricsMonitor.map((section, index) => (
-              <div key={index} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div key={index} className="rounded-xl border border-slate-800 bg-slate-950 p-4 shadow-inner">
                 <div className="mb-3 flex items-center gap-2">
                   <select className="input" value={section.section} onChange={(event) => updateSection(index, 'section', event.target.value)}>
                     {SECTION_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}

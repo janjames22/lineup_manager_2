@@ -6,6 +6,7 @@ import TeamAssignments from '../components/TeamAssignments';
 import { KEYS, emptyMusicians } from '../utils/constants';
 import { getLineupById, getSongs, saveLineup } from '../utils/storage';
 import { useOffline } from '../hooks/useOffline';
+import { useToast } from '../hooks/useToast';
 
 function nextSunday() {
   const date = new Date();
@@ -33,6 +34,7 @@ export default function LineupForm() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const isOffline = useOffline();
+  const { showToast } = useToast();
 
   useEffect(() => {
     async function loadData() {
@@ -113,10 +115,13 @@ export default function LineupForm() {
       console.log("Selected lineup songs:", selectedSongs);
       const saved = await saveLineup(lineup);
       if (!saved?.id) throw new Error('Lineup was not saved.');
+      showToast(`Lineup for ${lineup.date} saved!`, 'success');
       navigate(`/lineups/${saved.id}`);
     } catch (error) {
       console.error("Save lineup error:", error);
-      setError(error.message || 'Unable to save this lineup. Please try again.');
+      const msg = error.message || 'Unable to save this lineup. Please try again.';
+      setError(msg);
+      showToast(msg, 'error');
     } finally {
       setSaving(false);
     }
@@ -158,9 +163,9 @@ export default function LineupForm() {
 
           <div className="mt-5 space-y-3">
             {lineup.songs.map((song, index) => (
-              <div key={`${song.id || song.songId}-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div key={`${song.id || song.songId}-${index}`} className="rounded-xl border border-slate-800 bg-slate-950 p-4 shadow-inner">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                  <h3 className="font-bold text-slate-950">{index + 1}. {song.title}</h3>
+                  <h3 className="font-bold text-white">{index + 1}. {song.title}</h3>
                   <div className="flex flex-wrap gap-2">
                     <button className="icon-button" type="button" onClick={() => moveSong(index, -1)} title="Move up"><ArrowUp size={18} aria-hidden="true" /></button>
                     <button className="icon-button" type="button" onClick={() => moveSong(index, 1)} title="Move down"><ArrowDown size={18} aria-hidden="true" /></button>

@@ -8,9 +8,9 @@ export default function TeamAssignments({ musicians, onChange, readOnly = false 
     return (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {filled.map(([key, label]) => (
-          <div key={key} className="rounded-lg border border-slate-200 bg-blue-50 p-4">
-            <p className="text-xs font-semibold uppercase text-blue-700">{label}</p>
-            <p className="mt-1 font-semibold text-slate-950">{musicians[key]}</p>
+          <div key={key} className="rounded-xl border border-slate-800 bg-slate-950 p-4 shadow-inner">
+            <p className="text-[10px] font-black uppercase tracking-widest text-blue-400">{label}</p>
+            <p className="mt-1 font-bold text-white">{musicians[key]}</p>
           </div>
         ))}
       </div>

@@ -2,6 +2,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import LyricsMonitor from '../components/LyricsMonitor';
+import LoadingScreen from '../components/LoadingScreen';
 import { getLineupById, getSongById, getSongs } from '../utils/storage';
 
 export default function LyricsMonitorPage() {
@@ -70,12 +71,14 @@ export default function LyricsMonitorPage() {
       sections,
       backTo: lineup ? `/lineups/${lineup.id}` : '/lineups',
     };
-  }, [id, songId, index, lineup, song, songsMap, loading]);
+  }, [songId, index, lineup, song, songsMap, loading]);
 
-  if (loading || !monitorData) {
+  if (loading) return <LoadingScreen />;
+  if (!monitorData) {
     return (
       <main className="page-shell">
-        <p className="text-slate-600">Loading...</p>
+        <p className="text-slate-400">Unable to load monitor data.</p>
+        <Link className="btn-primary mt-4" to="/">Back to Dashboard</Link>
       </main>
     );
   }

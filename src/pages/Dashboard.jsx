@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import SongCard from '../components/SongCard';
+import LoadingScreen from '../components/LoadingScreen';
 import { getSongs, getUpcomingLineup } from '../utils/storage';
 
 export default function Dashboard() {
@@ -29,6 +30,8 @@ export default function Dashboard() {
     }
     loadData();
   }, []);
+
+  if (loading) return <LoadingScreen />;
 
   const recentSongs = songs.slice(0, 3);
 

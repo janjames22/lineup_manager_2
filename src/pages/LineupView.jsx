@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import TeamAssignments from '../components/TeamAssignments';
+import LoadingScreen from '../components/LoadingScreen';
 import { deleteLineup, getLineupById, getSongs, saveLineup } from '../utils/storage';
+import { useToast } from '../hooks/useToast';
 import { getSemitoneDelta, transposeChords, getTransposedKey } from '../utils/transposeChords';
 
 export default function LineupView() {
@@ -13,6 +15,7 @@ export default function LineupView() {
   const [songsMap, setSongsMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { showToast } = useToast();
 
   useEffect(() => {
     async function loadData() {
@@ -39,13 +42,7 @@ export default function LineupView() {
     loadData();
   }, [id]);
 
-  if (loading) {
-    return (
-      <main className="page-shell">
-        <p className="text-slate-600">Loading...</p>
-      </main>
-    );
-  }
+  if (loading) return <LoadingScreen />;
 
   if (!lineup) {
     return (
@@ -58,9 +55,14 @@ export default function LineupView() {
   }
 
   const remove = async () => {
-    if (confirm(`Delete lineup for ${lineup.date}?`)) {
-      await deleteLineup(lineup.id);
-      navigate('/lineups');
+    if (window.confirm(`Are you sure you want to delete the lineup for ${lineup.date}?`)) {
+      try {
+        await deleteLineup(lineup.id);
+        showToast(`Lineup for ${lineup.date} deleted`, 'info');
+        navigate('/lineups');
+      } catch {
+        showToast('Failed to delete lineup', 'error');
+      }
     }
   };
 
@@ -77,9 +79,9 @@ export default function LineupView() {
     
     try {
       await saveLineup(updatedLineup);
-    } catch (err) {
-      console.error('Failed to save transposed key', err);
-      // Revert on error
+      showToast(`${currentLineupSong.title} transposed to ${newKey}`, 'success', 2000);
+    } catch {
+      showToast('Failed to save key change', 'error');
       setLineup(lineup);
     }
   };

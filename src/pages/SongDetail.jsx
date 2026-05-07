@@ -2,8 +2,10 @@ import { ArrowLeft, Monitor, Pencil, Trash2, Youtube } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
+import LoadingScreen from '../components/LoadingScreen';
 import { formatBpm } from '../utils/constants';
 import { deleteSong, getSongById } from '../utils/storage';
+import { useToast } from '../hooks/useToast';
 import { getTransposedKey, transposeChords } from '../utils/transposeChords';
 
 export default function SongDetail() {
@@ -12,6 +14,7 @@ export default function SongDetail() {
   const [song, setSong] = useState(null);
   const [transposeAmount, setTransposeAmount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const { showToast } = useToast();
 
   useEffect(() => {
     async function loadSong() {
@@ -28,13 +31,7 @@ export default function SongDetail() {
     loadSong();
   }, [id]);
 
-  if (loading) {
-    return (
-      <main className="page-shell">
-        <p className="text-slate-600">Loading...</p>
-      </main>
-    );
-  }
+  if (loading) return <LoadingScreen />;
 
   if (!song) {
     return (
@@ -49,9 +46,14 @@ export default function SongDetail() {
   const transposedChart = transposeChords(song.chordChart, transposeAmount);
 
   const remove = async () => {
-    if (confirm(`Delete "${song.title}"?`)) {
-      await deleteSong(song.id);
-      navigate('/songs');
+    if (window.confirm(`Are you sure you want to delete "${song.title}"?`)) {
+      try {
+        await deleteSong(song.id);
+        showToast(`Song "${song.title}" deleted`, 'info');
+        navigate('/songs');
+      } catch {
+        showToast('Failed to delete song', 'error');
+      }
     }
   };
 
