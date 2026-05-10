@@ -254,7 +254,7 @@ export default function App() {
         </Routes>
       </div>
 
-      <footer className="border-t border-slate-800/50 bg-slate-900/60 px-4 py-4 print:hidden sm:px-6 lg:px-8">
+      <footer className="border-t border-slate-800/50 bg-slate-900/60 px-4 pt-4 pb-[calc(6.75rem+env(safe-area-inset-bottom,0px))] print:hidden sm:px-6 sm:py-4 lg:px-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-black text-white tracking-tight">About & Updates</p>

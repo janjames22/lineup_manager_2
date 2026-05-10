@@ -315,23 +315,23 @@ export default function SongForm() {
 
           <label>
             <span className="label">Chord Chart</span>
-            <textarea className="textarea min-h-72 font-mono" value={song.chordChart} onChange={(event) => update('chordChart', event.target.value)} placeholder={'Intro:\nC  G  Am  F\n\nVerse 1:\n[Team-approved chord chart here]'} />
+            <textarea className="textarea min-h-[18rem] font-mono sm:min-h-72" value={song.chordChart} onChange={(event) => update('chordChart', event.target.value)} placeholder={'Intro:\nC  G  Am  F\n\nVerse 1:\n[Team-approved chord chart here]'} />
           </label>
 
           <label>
             <span className="label">Arrangement Notes</span>
-            <textarea className="textarea" value={song.notes} onChange={(event) => update('notes', event.target.value)} />
+            <textarea className="textarea min-h-36" value={song.notes} onChange={(event) => update('notes', event.target.value)} />
           </label>
         </section>
 
         <aside className="panel h-fit space-y-5">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="section-title">Lyrics Monitor</h2>
               <p className="text-sm text-slate-600">Use team-approved lyrics, cue text, or placeholders.</p>
             </div>
-            <button type="button" className="btn-secondary" onClick={addSection}>
-              <Plus size={16} aria-hidden="true" /> Section
+            <button type="button" className="btn-secondary w-full sm:w-auto" onClick={addSection}>
+              <Plus size={16} aria-hidden="true" /> Add Section
             </button>
           </div>
 
@@ -343,7 +343,7 @@ export default function SongForm() {
                 .filter((item) => item.itemIndex !== index);
 
               return (
-                <div key={index} className="rounded-xl border border-slate-800 bg-slate-950 p-4 shadow-inner">
+                <div key={index} className="rounded-xl border border-slate-800 bg-slate-950 p-3 shadow-inner sm:p-4">
                   <div className="mb-3 grid gap-3">
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label>
@@ -397,7 +397,7 @@ export default function SongForm() {
                       </button>
                     </div>
                   </div>
-                  <textarea className="textarea" value={section.text} onChange={(event) => updateSection(index, 'text', event.target.value)} placeholder="Cue text or permitted lyrics" />
+                  <textarea className="textarea min-h-40" value={section.text} onChange={(event) => updateSection(index, 'text', event.target.value)} placeholder="Cue text or permitted lyrics" />
                   <input className="input mt-3" value={section.vocalNotes || ''} onChange={(event) => updateSection(index, 'vocalNotes', event.target.value)} placeholder="Vocal notes" />
                   <input className="input mt-3" value={section.repeatCount || ''} onChange={(event) => updateSection(index, 'repeatCount', event.target.value)} placeholder="Repeat count" />
                 </div>

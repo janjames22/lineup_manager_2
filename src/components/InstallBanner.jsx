@@ -74,7 +74,7 @@ export default function InstallBanner() {
   if (!isVisible || isStandalone) return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[100] p-4 animate-slide-up print:hidden sm:bottom-6 sm:left-6 sm:right-auto sm:w-[420px]">
+    <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+5.75rem)] z-[100] p-4 animate-slide-up print:hidden sm:bottom-6 sm:left-6 sm:right-auto sm:w-[420px]">
       <div className="relative overflow-hidden rounded-[2rem] border border-slate-700 bg-slate-900/90 p-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)] ring-1 ring-white/10 backdrop-blur-2xl">
         {/* Top accent bar */}
         <div className="absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600"></div>
