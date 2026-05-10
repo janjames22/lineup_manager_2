@@ -6,10 +6,10 @@ export default function TeamAssignments({ musicians, onChange, readOnly = false 
     if (!filled.length) return <p className="text-sm text-slate-500">No team assignments yet.</p>;
 
     return (
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="print-team-grid grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {filled.map(([key, label]) => (
-          <div key={key} className="rounded-xl border border-slate-800 bg-slate-950 p-4 shadow-inner">
-            <p className="text-[10px] font-black uppercase tracking-widest text-blue-400">{label}</p>
+          <div key={key} className="print-team-card rounded-xl border border-slate-800 bg-slate-950 p-4 shadow-inner">
+            <p className="print-accent text-[10px] font-black uppercase tracking-widest text-blue-400">{label}</p>
             <p className="mt-1 font-bold text-white">{musicians[key]}</p>
           </div>
         ))}

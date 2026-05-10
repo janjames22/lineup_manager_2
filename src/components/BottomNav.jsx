@@ -8,7 +8,7 @@ const navLinkClass = ({ isActive }) =>
 
 export default function BottomNav() {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-around border-t border-slate-800/50 bg-slate-900/95 px-4 pb-[env(safe-area-inset-bottom,12px)] pt-3 backdrop-blur-md lg:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-around border-t border-slate-800/50 bg-slate-900/95 px-4 pb-[env(safe-area-inset-bottom,12px)] pt-3 backdrop-blur-md print:hidden lg:hidden">
       <NavLink to="/" className={navLinkClass}>
         <Home size={22} />
         <span className="text-[10px] font-black uppercase tracking-widest">Home</span>

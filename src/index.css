@@ -125,20 +125,101 @@
 }
 
 @media print {
+  @page {
+    margin: 12mm;
+  }
+
+  html,
+  body,
+  #root {
+    background: #ffffff !important;
+    color: #111827 !important;
+  }
+
   body {
-    background: white;
+    min-width: 0;
+    background: #ffffff !important;
+    color: #111827 !important;
+    padding: 0;
   }
 
   .page-shell {
-    padding: 0;
-    max-width: none;
+    padding: 0 !important;
+    max-width: none !important;
     animation: none;
   }
 
+  nav,
+  footer {
+    display: none !important;
+  }
+
   .panel,
-  .chord-sheet {
+  .chord-sheet,
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger,
+  .btn-dark,
+  .icon-button,
+  .quick-action {
     box-shadow: none !important;
-    border: none;
-    padding: 0;
+    text-shadow: none !important;
+    background-image: none !important;
+  }
+
+  .print-sheet,
+  .print-sheet * {
+    color: #111827 !important;
+  }
+
+  .print-sheet {
+    max-width: none !important;
+    background: #ffffff !important;
+  }
+
+  .print-sheet .print-muted {
+    color: #374151 !important;
+  }
+
+  .print-sheet .print-accent {
+    color: #1f2937 !important;
+  }
+
+  .print-sheet .print-divider {
+    border-color: #cbd5e1 !important;
+  }
+
+  .print-sheet .print-card,
+  .print-sheet .print-chord-chart,
+  .print-sheet .print-team-card {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: none !important;
+  }
+
+  .print-sheet .print-block,
+  .print-sheet .print-item,
+  .print-sheet .print-chord-chart,
+  .print-sheet .print-team-card {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .chord-sheet,
+  .print-sheet pre {
+    overflow: visible !important;
+    white-space: pre-wrap !important;
+    color: #111827 !important;
+  }
+
+  .panel {
+    border: none !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  .chord-sheet {
+    padding: 0 !important;
+    background: transparent !important;
   }
 }

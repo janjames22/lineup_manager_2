@@ -39,7 +39,7 @@ export default function PrintExportView() {
 
   if (loading) {
     return (
-      <main className="page-shell">
+      <main className="page-shell print-sheet">
         <p className="text-slate-600">Loading...</p>
       </main>
     );
@@ -47,7 +47,7 @@ export default function PrintExportView() {
 
   if (!lineup) {
     return (
-      <main className="page-shell">
+      <main className="page-shell print-sheet">
         <p className="text-slate-600">Lineup not found.</p>
         {error && <p className="mt-2 text-sm font-semibold text-red-700">{error}</p>}
         <Link className="btn-primary mt-4" to="/lineups">Back to Lineups</Link>
@@ -56,39 +56,39 @@ export default function PrintExportView() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+    <main className="print-sheet mx-auto max-w-5xl bg-white px-4 py-8 text-slate-900 sm:px-6 lg:px-8">
       <div className="mb-6 flex flex-wrap gap-2 print:hidden">
         <Link className="btn-secondary" to={`/lineups/${lineup.id}`}><ArrowLeft size={18} aria-hidden="true" /> Back</Link>
         <button className="btn-primary" type="button" onClick={() => window.print()}><Printer size={18} aria-hidden="true" /> Print / Export</button>
       </div>
 
-      <header className="border-b border-slate-300 pb-5">
-        <p className="text-sm font-semibold text-blue-700">Sunday Lineup</p>
+      <header className="print-block print-divider border-b border-slate-300 pb-5">
+        <p className="print-accent text-sm font-semibold text-blue-700">Sunday Lineup</p>
         <h1 className="text-3xl font-bold text-slate-950">{lineup.date} • {lineup.serviceTime}</h1>
-        <p className="mt-2 text-slate-700">Worship Leader: {lineup.worshipLeader || 'TBD'}</p>
+        <p className="print-muted mt-2 text-slate-700">Worship Leader: {lineup.worshipLeader || 'TBD'}</p>
       </header>
 
       <section className="mt-6">
-        <h2 className="section-title">Song Lineup</h2>
+        <h2 className="print-accent text-2xl font-bold tracking-tight text-slate-950">Song Lineup</h2>
         <div className="mt-4 space-y-6">
           {lineup.songs.map((lineupSong, index) => {
             const song = songsMap[lineupSong.id || lineupSong.songId];
             const delta = song ? getSemitoneDelta(song.originalKey, lineupSong.selectedKey) : 0;
             return (
-              <article key={`${lineupSong.id || lineupSong.songId}-${index}`} className="break-inside-avoid border-b border-slate-200 pb-6">
+              <article key={`${lineupSong.id || lineupSong.songId}-${index}`} className="print-item print-divider break-inside-avoid border-b border-slate-200 pb-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h3 className="text-xl font-bold text-slate-950">{index + 1}. {lineupSong.title}</h3>
-                    {lineupSong.notes && <p className="mt-1 text-sm text-slate-700">{lineupSong.notes}</p>}
+                    {lineupSong.notes && <p className="print-muted mt-1 text-sm text-slate-700">{lineupSong.notes}</p>}
                   </div>
-                  <span className="font-bold text-blue-700">Key: {lineupSong.selectedKey}</span>
+                  <span className="print-accent font-bold text-blue-700">Key: {lineupSong.selectedKey}</span>
                 </div>
-                <pre className="mt-3 whitespace-pre-wrap rounded bg-slate-50 p-4 font-mono text-sm">{song ? transposeChords(song.chordChart, delta) : 'Song not found in library.'}</pre>
+                <pre className="print-chord-chart mt-3 whitespace-pre-wrap rounded bg-slate-50 p-4 font-mono text-sm text-slate-900">{song ? transposeChords(song.chordChart, delta) : 'Song not found in library.'}</pre>
                 {song?.lyricsMonitor?.length > 0 && (
-                  <div className="mt-3 rounded border border-slate-200 p-3">
-                    <p className="mb-2 text-sm font-semibold text-slate-700">Lyrics Monitor Cues</p>
+                  <div className="print-card mt-3 rounded border border-slate-200 p-3">
+                    <p className="print-accent mb-2 text-sm font-semibold text-slate-700">Lyrics Monitor Cues</p>
                     {song.lyricsMonitor.map((cue, cueIndex) => (
-                      <p key={`${cue.section}-${cueIndex}`} className="text-sm text-slate-700">
+                      <p key={`${cue.section}-${cueIndex}`} className="print-muted text-sm text-slate-700">
                         <strong>{cue.section}:</strong> {cue.text || 'No cue text.'}
                       </p>
                     ))}
@@ -101,7 +101,7 @@ export default function PrintExportView() {
       </section>
 
       <section className="mt-8 break-inside-avoid">
-        <h2 className="section-title">Team Assignments</h2>
+        <h2 className="print-accent text-2xl font-bold tracking-tight text-slate-950">Team Assignments</h2>
         <div className="mt-4">
           <TeamAssignments musicians={lineup.musicians} readOnly />
         </div>
@@ -109,8 +109,8 @@ export default function PrintExportView() {
 
       {lineup.generalNotes && (
         <section className="mt-8 break-inside-avoid">
-          <h2 className="section-title">General Reminders</h2>
-          <p className="mt-2 whitespace-pre-wrap text-slate-700">{lineup.generalNotes}</p>
+          <h2 className="print-accent text-2xl font-bold tracking-tight text-slate-950">General Reminders</h2>
+          <p className="print-muted mt-2 whitespace-pre-wrap text-slate-700">{lineup.generalNotes}</p>
         </section>
       )}
     </main>
