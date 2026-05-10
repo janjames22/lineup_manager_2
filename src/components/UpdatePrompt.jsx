@@ -15,7 +15,7 @@ export default function UpdatePrompt({ onUpdate, onDismiss }) {
           <div className="flex-1 min-w-0">
             <h3 className="flex items-center gap-2 text-base font-black text-white tracking-tight">
               <Sparkles size={14} className="text-blue-400" />
-              New Update Available
+              New update available
             </h3>
             <p className="truncate text-xs font-medium text-slate-400">
               Fresh features and improvements are ready.
@@ -27,7 +27,7 @@ export default function UpdatePrompt({ onUpdate, onDismiss }) {
               onClick={onUpdate}
               className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white shadow-lg shadow-blue-900/20 transition-all hover:bg-blue-500 active:scale-95"
             >
-              Update
+              Update Now
             </button>
             <button
               onClick={onDismiss}
