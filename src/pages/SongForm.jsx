@@ -1,4 +1,4 @@
-import { Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Copy, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
@@ -19,6 +19,38 @@ const blankSong = {
   chordChart: '',
   lyricsMonitor: [],
   notes: '',
+};
+
+const normalizeSectionName = (name = '') =>
+  String(name).toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+const getChordChartTextForSection = (chordChart = '', sectionName = '') => {
+  const chart = chordChart.trim();
+  if (!chart) return '';
+
+  const requested = normalizeSectionName(sectionName);
+  const blocks = [];
+  let currentBlock = null;
+
+  chart.split(/\r?\n/).forEach((line) => {
+    const headerMatch = line.match(/^\s*(?:\[([^\]]+)\]|([A-Za-z][A-Za-z\s-]*(?:\s\d+)?))\s*[:：]\s*$/);
+
+    if (headerMatch) {
+      currentBlock = {
+        section: (headerMatch[1] || headerMatch[2]).trim(),
+        lines: [],
+      };
+      blocks.push(currentBlock);
+      return;
+    }
+
+    if (currentBlock) currentBlock.lines.push(line);
+  });
+
+  const matchedBlock = blocks.find((block) => normalizeSectionName(block.section) === requested);
+  const matchedText = matchedBlock?.lines.join('\n').trim();
+
+  return matchedText || chart;
 };
 
 export default function SongForm() {
@@ -51,14 +83,66 @@ export default function SongForm() {
 
   const update = (field, value) => setSong((current) => ({ ...current, [field]: value }));
   const updateSection = (index, field, value) => {
-    update('lyricsMonitor', song.lyricsMonitor.map((section, itemIndex) => (itemIndex === index ? { ...section, [field]: value } : section)));
+    setSong((current) => ({
+      ...current,
+      lyricsMonitor: current.lyricsMonitor.map((section, itemIndex) => (
+        itemIndex === index ? { ...section, [field]: value } : section
+      )),
+    }));
   };
 
   const addSection = () => {
     update('lyricsMonitor', [...song.lyricsMonitor, { section: 'Verse 1', text: '', vocalNotes: '', repeatCount: '' }]);
   };
 
+  const handleSectionTypeChange = (index, value) => {
+    const currentSectionName = song.lyricsMonitor[index]?.section || '';
+    updateSection(index, 'section', value === 'Custom' && !SECTION_TYPES.includes(currentSectionName) ? currentSectionName : value);
+  };
+
+  const handleContentSourceChange = (index, value) => {
+    if (!value) return;
+
+    if (value === 'blank') {
+      updateSection(index, 'text', '');
+      return;
+    }
+
+    if (value === 'chordChart') {
+      updateSection(index, 'text', getChordChartTextForSection(song.chordChart, song.lyricsMonitor[index]?.section));
+      return;
+    }
+
+    if (value.startsWith('section:')) {
+      const sourceIndex = Number(value.replace('section:', ''));
+      updateSection(index, 'text', song.lyricsMonitor[sourceIndex]?.text || '');
+    }
+  };
+
+  const duplicateSection = (index) => {
+    setSong((current) => {
+      const nextLyricsMonitor = [...current.lyricsMonitor];
+      const sectionToDuplicate = current.lyricsMonitor[index];
+      nextLyricsMonitor.splice(index + 1, 0, { ...sectionToDuplicate });
+      return { ...current, lyricsMonitor: nextLyricsMonitor };
+    });
+  };
+
+  const moveSection = (index, direction) => {
+    setSong((current) => {
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= current.lyricsMonitor.length) return current;
+
+      const nextLyricsMonitor = [...current.lyricsMonitor];
+      [nextLyricsMonitor[index], nextLyricsMonitor[targetIndex]] = [nextLyricsMonitor[targetIndex], nextLyricsMonitor[index]];
+      return { ...current, lyricsMonitor: nextLyricsMonitor };
+    });
+  };
+
   const removeSection = (index) => {
+    const sectionName = song.lyricsMonitor[index]?.section || 'this section';
+    if (!window.confirm(`Delete "${sectionName}" from Lyrics Monitor?`)) return;
+
     update('lyricsMonitor', song.lyricsMonitor.filter((_, itemIndex) => itemIndex !== index));
   };
 
@@ -174,21 +258,76 @@ export default function SongForm() {
           </div>
 
           <div className="space-y-4">
-            {song.lyricsMonitor.map((section, index) => (
-              <div key={index} className="rounded-xl border border-slate-800 bg-slate-950 p-4 shadow-inner">
-                <div className="mb-3 flex items-center gap-2">
-                  <select className="input" value={section.section} onChange={(event) => updateSection(index, 'section', event.target.value)}>
-                    {SECTION_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
-                  </select>
-                  <button className="icon-button" type="button" onClick={() => removeSection(index)} title="Remove section">
-                    <Trash2 size={18} aria-hidden="true" />
-                  </button>
+            {song.lyricsMonitor.map((section, index) => {
+              const sectionTypeValue = SECTION_TYPES.includes(section.section) ? section.section : 'Custom';
+              const existingSections = song.lyricsMonitor
+                .map((item, itemIndex) => ({ ...item, itemIndex }))
+                .filter((item) => item.itemIndex !== index);
+
+              return (
+                <div key={index} className="rounded-xl border border-slate-800 bg-slate-950 p-4 shadow-inner">
+                  <div className="mb-3 grid gap-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label>
+                        <span className="label">Section Type</span>
+                        <select className="input" value={sectionTypeValue} onChange={(event) => handleSectionTypeChange(index, event.target.value)}>
+                          {SECTION_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                        </select>
+                      </label>
+                      <label>
+                        <span className="label">Content Source</span>
+                        <select className="input" value="" onChange={(event) => handleContentSourceChange(index, event.target.value)}>
+                          <option value="" disabled>Choose source</option>
+                          <option value="blank">Blank section</option>
+                          <option value="chordChart">Copy from Chord Chart</option>
+                          {existingSections.length > 0 ? (
+                            <optgroup label="Copy from existing Lyrics Monitor sections">
+                              {existingSections.map((item) => (
+                                <option key={item.itemIndex} value={`section:${item.itemIndex}`}>
+                                  {item.section || `Section ${item.itemIndex + 1}`}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ) : (
+                            <option value="existing-empty" disabled>Copy from existing Lyrics Monitor sections</option>
+                          )}
+                        </select>
+                      </label>
+                    </div>
+
+                    {sectionTypeValue === 'Custom' && (
+                      <label>
+                        <span className="label">Custom Section Name</span>
+                        <input
+                          className="input"
+                          value={section.section === 'Custom' ? '' : section.section || ''}
+                          onChange={(event) => updateSection(index, 'section', event.target.value)}
+                          placeholder="Enter section name"
+                        />
+                      </label>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      <button className="btn-secondary !px-3" type="button" onClick={() => duplicateSection(index)}>
+                        <Copy size={16} aria-hidden="true" /> Duplicate
+                      </button>
+                      <button className="btn-secondary !px-3" type="button" onClick={() => moveSection(index, -1)} disabled={index === 0}>
+                        <ArrowUp size={16} aria-hidden="true" /> Move Up
+                      </button>
+                      <button className="btn-secondary !px-3" type="button" onClick={() => moveSection(index, 1)} disabled={index === song.lyricsMonitor.length - 1}>
+                        <ArrowDown size={16} aria-hidden="true" /> Move Down
+                      </button>
+                      <button className="btn-danger !px-3" type="button" onClick={() => removeSection(index)}>
+                        <Trash2 size={16} aria-hidden="true" /> Delete
+                      </button>
+                    </div>
+                  </div>
+                  <textarea className="textarea" value={section.text} onChange={(event) => updateSection(index, 'text', event.target.value)} placeholder="Cue text or permitted lyrics" />
+                  <input className="input mt-3" value={section.vocalNotes || ''} onChange={(event) => updateSection(index, 'vocalNotes', event.target.value)} placeholder="Vocal notes" />
+                  <input className="input mt-3" value={section.repeatCount || ''} onChange={(event) => updateSection(index, 'repeatCount', event.target.value)} placeholder="Repeat count" />
                 </div>
-                <textarea className="textarea" value={section.text} onChange={(event) => updateSection(index, 'text', event.target.value)} placeholder="Cue text or permitted lyrics" />
-                <input className="input mt-3" value={section.vocalNotes || ''} onChange={(event) => updateSection(index, 'vocalNotes', event.target.value)} placeholder="Vocal notes" />
-                <input className="input mt-3" value={section.repeatCount || ''} onChange={(event) => updateSection(index, 'repeatCount', event.target.value)} placeholder="Repeat count" />
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <button className="btn-primary w-full justify-center" type="submit" disabled={saving || isOffline}>

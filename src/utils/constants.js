@@ -1,7 +1,6 @@
 export const KEYS = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B'];
 
 export const SECTION_TYPES = [
-  'Intro',
   'Verse 1',
   'Verse 2',
   'Verse 3',
@@ -11,6 +10,7 @@ export const SECTION_TYPES = [
   'Bridge',
   'Instrumental',
   'Ending',
+  'Custom',
 ];
 
 export const MUSICIAN_FIELDS = [
