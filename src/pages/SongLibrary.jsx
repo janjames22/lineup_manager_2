@@ -57,7 +57,7 @@ export default function SongLibrary() {
         description="Search by title, key, category, or language."
         actions={
           <div className="flex items-center gap-2">
-            <DownloadOfflineButton onDownload={async () => { await getSongs(); }} label="Sync Songs" />
+            <DownloadOfflineButton onDownload={async () => { await getSongs(); }} label="Sync Songs" syncKey="songs" />
             <Link className="btn-primary" to="/songs/new"><Plus size={18} aria-hidden="true" /> Add Song</Link>
           </div>
         }

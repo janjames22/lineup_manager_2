@@ -38,7 +38,7 @@ export default function LineupList() {
         description="Create, review, monitor, and print weekly worship lineups."
         actions={
           <div className="flex items-center gap-2">
-            <DownloadOfflineButton onDownload={async () => { await getLineups(); }} label="Sync Lineups" />
+            <DownloadOfflineButton onDownload={async () => { await getLineups(); }} label="Sync Lineups" syncKey="lineups" />
             <Link className="btn-primary" to="/lineups/new"><CalendarPlus size={18} aria-hidden="true" /> Create Lineup</Link>
           </div>
         }

@@ -1,6 +1,6 @@
 import { Copy, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useBeforeUnload, useBlocker, useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import { KEYS, SECTION_TYPES } from '../utils/constants';
 import { getSongById, saveSong } from '../utils/storage';
@@ -26,6 +26,20 @@ const createBlankLyricsSection = () => ({
   text: '',
   vocalNotes: '',
   repeatCount: '',
+});
+
+const buildSongSnapshot = (song = {}) => JSON.stringify({
+  title: song.title || '',
+  artist: song.artist || '',
+  originalKey: song.originalKey || 'C',
+  selectedKey: song.selectedKey || 'C',
+  tempo: song.tempo || '',
+  category: song.category || '',
+  language: song.language || '',
+  youtubeLink: song.youtubeLink || '',
+  chordChart: song.chordChart || '',
+  lyricsMonitor: Array.isArray(song.lyricsMonitor) ? song.lyricsMonitor : [],
+  notes: song.notes || '',
 });
 
 const normalizeSectionName = (name = '') =>
@@ -67,20 +81,31 @@ export default function SongForm() {
   const [loading, setLoading] = useState(!!id);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [baselineSnapshot, setBaselineSnapshot] = useState(buildSongSnapshot(blankSong));
+  const [saveStatus, setSaveStatus] = useState('idle');
   const isOffline = useOffline();
   const { showToast } = useToast();
+  const hasUnsavedChanges = !loading && buildSongSnapshot(song) !== baselineSnapshot;
+  const blocker = useBlocker(hasUnsavedChanges);
 
   useEffect(() => {
     async function loadSong() {
       try {
         if (id) {
           const existing = await getSongById(id);
-          setSong(existing || blankSong);
+          const nextSong = existing || blankSong;
+          setSong(nextSong);
+          setBaselineSnapshot(buildSongSnapshot(nextSong));
+        } else {
+          setBaselineSnapshot(buildSongSnapshot(blankSong));
         }
+        setSaveStatus('idle');
       } catch (error) {
         console.error("Failed to load songs:", error);
         setError('Unable to load this song. Please try again.');
         setSong(blankSong);
+        setBaselineSnapshot(buildSongSnapshot(blankSong));
+        setSaveStatus('error');
       } finally {
         setLoading(false);
       }
@@ -88,7 +113,29 @@ export default function SongForm() {
     loadSong();
   }, [id]);
 
-  const update = (field, value) => setSong((current) => ({ ...current, [field]: value }));
+  useBeforeUnload((event) => {
+    if (!hasUnsavedChanges) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
+
+  useEffect(() => {
+    if (blocker.state !== 'blocked') return;
+
+    const shouldLeave = window.confirm('You have unsaved changes. Leave this page anyway?');
+    if (shouldLeave) blocker.proceed();
+    else blocker.reset();
+  }, [blocker]);
+
+  const markUnsaved = () => {
+    setError('');
+    setSaveStatus('unsaved');
+  };
+
+  const update = (field, value) => {
+    setSong((current) => ({ ...current, [field]: value }));
+    markUnsaved();
+  };
   const updateSection = (index, field, value) => {
     setSong((current) => ({
       ...current,
@@ -96,6 +143,7 @@ export default function SongForm() {
         itemIndex === index ? { ...section, [field]: value } : section
       )),
     }));
+    markUnsaved();
   };
 
   const addSection = () => {
@@ -108,6 +156,7 @@ export default function SongForm() {
       nextLyricsMonitor.splice(index + 1, 0, createBlankLyricsSection());
       return { ...current, lyricsMonitor: nextLyricsMonitor };
     });
+    markUnsaved();
   };
 
   const handleSectionTypeChange = (index, value) => {
@@ -141,6 +190,7 @@ export default function SongForm() {
       nextLyricsMonitor.splice(index + 1, 0, { ...sectionToDuplicate });
       return { ...current, lyricsMonitor: nextLyricsMonitor };
     });
+    markUnsaved();
   };
 
   const removeSection = (index) => {
@@ -154,21 +204,45 @@ export default function SongForm() {
     event.preventDefault();
     setSaving(true);
     setError('');
+    setSaveStatus('saving');
 
     try {
       const saved = await saveSong(song);
       if (!saved?.id) throw new Error('Song was not saved.');
+      setSong(saved);
+      setBaselineSnapshot(buildSongSnapshot(saved));
+      setSaveStatus('saved');
       showToast(`Song "${song.title}" saved successfully!`, 'success');
-      navigate('/songs');
+      if (!id && saved.id) navigate(`/songs/${saved.id}/edit`, { replace: true });
     } catch (error) {
       console.error("Failed to save song:", error);
       const msg = error.message || 'Unable to save this song. Please try again.';
       setError(msg);
+      setSaveStatus('error');
       showToast(msg, 'error');
     } finally {
       setSaving(false);
     }
   };
+
+  const saveStatusConfig = {
+    unsaved: {
+      label: 'Unsaved changes',
+      classes: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
+    },
+    saving: {
+      label: 'Saving...',
+      classes: 'border-blue-500/30 bg-blue-500/10 text-blue-200',
+    },
+    saved: {
+      label: 'Saved successfully',
+      classes: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
+    },
+    error: {
+      label: 'Error saving',
+      classes: 'border-red-500/30 bg-red-500/10 text-red-200',
+    },
+  }[saveStatus];
 
   if (loading) {
     return (
@@ -330,6 +404,12 @@ export default function SongForm() {
               );
             })}
           </div>
+
+          {saveStatusConfig && (
+            <div className={`rounded-xl border px-4 py-3 text-sm font-bold ${saveStatusConfig.classes}`}>
+              {saveStatusConfig.label}
+            </div>
+          )}
 
           <button className="btn-primary w-full justify-center" type="submit" disabled={saving || isOffline}>
             {isOffline ? 'Editing requires internet connection' : saving ? 'Saving...' : id ? 'Update Song' : 'Save Song'}

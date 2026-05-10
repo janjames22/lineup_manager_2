@@ -1,14 +1,46 @@
-import { WifiOff } from 'lucide-react';
-import { useOffline } from '../hooks/useOffline';
+import { AlertTriangle, CheckCircle2, Loader2, Wifi, WifiOff } from 'lucide-react';
+import { useSyncStatus } from '../hooks/useSyncStatus';
 
 export default function OfflineStatusBadge() {
-  const isOffline = useOffline();
+  const { status } = useSyncStatus();
 
-  if (!isOffline) return null;
+  if (status === 'online') return null;
+
+  const config = {
+    offline: {
+      icon: WifiOff,
+      label: 'Offline mode',
+      classes: 'bg-amber-100 text-amber-800',
+    },
+    back_online: {
+      icon: Wifi,
+      label: 'Back online',
+      classes: 'bg-sky-100 text-sky-800',
+    },
+    syncing: {
+      icon: Loader2,
+      label: 'Syncing...',
+      classes: 'bg-blue-100 text-blue-800',
+      iconClasses: 'animate-spin',
+    },
+    synced: {
+      icon: CheckCircle2,
+      label: 'Synced',
+      classes: 'bg-emerald-100 text-emerald-800',
+    },
+    sync_error: {
+      icon: AlertTriangle,
+      label: 'Sync error',
+      classes: 'bg-red-100 text-red-800',
+    },
+  }[status];
+
+  if (!config) return null;
+  const Icon = config.icon;
 
   return (
-    <div className="flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-800 shadow-sm" title="Downloaded songs and lineups can be opened even without internet.">
-      <WifiOff size={14} /> Offline Mode
+    <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold shadow-sm ${config.classes}`} title="Downloaded songs and lineups can be opened even without internet.">
+      <Icon size={14} className={config.iconClasses || ''} /> {config.label}
     </div>
   );
 }
