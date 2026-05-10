@@ -1,11 +1,15 @@
 import { Copy, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useBeforeUnload, useBlocker, useNavigate, useParams } from 'react-router-dom';
+import { useBeforeUnload, useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import { KEYS, SECTION_TYPES } from '../utils/constants';
 import { getSongById, normalizeLyricsMonitor, saveSong } from '../utils/storage';
 import { useOffline } from '../hooks/useOffline';
 import { useToast } from '../hooks/useToast';
+
+const DEFAULT_LYRICS_MONITOR_THEME = 'Dark Void';
+const SAFE_KEYS = Array.isArray(KEYS) && KEYS.length ? KEYS : ['C'];
+const SAFE_SECTION_TYPES = Array.isArray(SECTION_TYPES) && SECTION_TYPES.length ? SECTION_TYPES : ['Verse 1', 'Custom'];
 
 const blankSong = {
   title: '',
@@ -18,6 +22,7 @@ const blankSong = {
   youtubeLink: '',
   chordChart: '',
   lyricsMonitor: [],
+  lyricsMonitorTheme: DEFAULT_LYRICS_MONITOR_THEME,
   notes: '',
 };
 
@@ -35,21 +40,27 @@ const toSafeText = (value, fallback = '') => {
   return String(value);
 };
 
-const sanitizeSongForForm = (song = {}) => ({
-  ...blankSong,
-  ...song,
-  title: toSafeText(song.title, ''),
-  artist: toSafeText(song.artist, ''),
-  originalKey: toSafeText(song.originalKey, blankSong.originalKey) || blankSong.originalKey,
-  selectedKey: toSafeText(song.selectedKey, song.originalKey || blankSong.selectedKey) || toSafeText(song.originalKey, blankSong.selectedKey) || blankSong.selectedKey,
-  tempo: toSafeText(song.tempo, ''),
-  category: toSafeText(song.category, blankSong.category) || blankSong.category,
-  language: toSafeText(song.language, blankSong.language) || blankSong.language,
-  youtubeLink: toSafeText(song.youtubeLink, ''),
-  chordChart: toSafeText(song.chordChart, ''),
-  lyricsMonitor: normalizeLyricsMonitor(song.lyricsMonitor),
-  notes: toSafeText(song.notes, ''),
-});
+const normalizeSongFormData = (song = {}) => {
+  const source = song && typeof song === 'object' && !Array.isArray(song) ? song : {};
+  const originalKey = toSafeText(source.originalKey, blankSong.originalKey) || blankSong.originalKey;
+
+  return {
+    ...blankSong,
+    ...source,
+    title: toSafeText(source.title, ''),
+    artist: toSafeText(source.artist, ''),
+    originalKey,
+    selectedKey: toSafeText(source.selectedKey, originalKey) || originalKey,
+    tempo: toSafeText(source.tempo, ''),
+    category: toSafeText(source.category, blankSong.category) || blankSong.category,
+    language: toSafeText(source.language, blankSong.language) || blankSong.language,
+    youtubeLink: toSafeText(source.youtubeLink, ''),
+    chordChart: toSafeText(source.chordChart, ''),
+    lyricsMonitor: normalizeLyricsMonitor(source.lyricsMonitor),
+    lyricsMonitorTheme: toSafeText(source.lyricsMonitorTheme, DEFAULT_LYRICS_MONITOR_THEME) || DEFAULT_LYRICS_MONITOR_THEME,
+    notes: toSafeText(source.notes, ''),
+  };
+};
 
 const buildSongSnapshot = (song = {}) => JSON.stringify({
   title: typeof song.title === 'string' ? song.title : String(song.title ?? ''),
@@ -62,6 +73,7 @@ const buildSongSnapshot = (song = {}) => JSON.stringify({
   youtubeLink: typeof song.youtubeLink === 'string' ? song.youtubeLink : '',
   chordChart: typeof song.chordChart === 'string' ? song.chordChart : String(song.chordChart ?? ''),
   lyricsMonitor: normalizeLyricsMonitor(song.lyricsMonitor),
+  lyricsMonitorTheme: typeof song.lyricsMonitorTheme === 'string' ? song.lyricsMonitorTheme : DEFAULT_LYRICS_MONITOR_THEME,
   notes: typeof song.notes === 'string' ? song.notes : String(song.notes ?? ''),
 });
 
@@ -104,24 +116,33 @@ export default function SongForm() {
   const [loading, setLoading] = useState(!!id);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [notFound, setNotFound] = useState(false);
   const [baselineSnapshot, setBaselineSnapshot] = useState(buildSongSnapshot(blankSong));
   const [saveStatus, setSaveStatus] = useState('idle');
   const isOffline = useOffline();
   const { showToast } = useToast();
   const hasUnsavedChanges = !loading && buildSongSnapshot(song) !== baselineSnapshot;
-  const blocker = useBlocker(hasUnsavedChanges);
   const lyricsSections = normalizeLyricsMonitor(song.lyricsMonitor);
 
   useEffect(() => {
     async function loadSong() {
       try {
+        setLoading(true);
+        setNotFound(false);
         if (id) {
           const existing = await getSongById(id);
-          const nextSong = sanitizeSongForForm(existing || blankSong);
+          if (!existing) {
+            setNotFound(true);
+            const nextSong = normalizeSongFormData(blankSong);
+            setSong(nextSong);
+            setBaselineSnapshot(buildSongSnapshot(nextSong));
+            return;
+          }
+          const nextSong = normalizeSongFormData(existing);
           setSong(nextSong);
           setBaselineSnapshot(buildSongSnapshot(nextSong));
         } else {
-          const nextSong = sanitizeSongForForm(blankSong);
+          const nextSong = normalizeSongFormData(blankSong);
           setSong(nextSong);
           setBaselineSnapshot(buildSongSnapshot(nextSong));
         }
@@ -146,12 +167,25 @@ export default function SongForm() {
   });
 
   useEffect(() => {
-    if (blocker.state !== 'blocked') return;
+    if (!hasUnsavedChanges) return undefined;
 
-    const shouldLeave = window.confirm('You have unsaved changes. Leave this page anyway?');
-    if (shouldLeave) blocker.proceed();
-    else blocker.reset();
-  }, [blocker]);
+    const handleDocumentClick = (event) => {
+      const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
+      if (!link) return;
+      if (link.target && link.target !== '_self') return;
+
+      const nextUrl = new URL(link.href, window.location.href);
+      const currentUrl = new URL(window.location.href);
+      if (nextUrl.origin !== currentUrl.origin) return;
+      if (nextUrl.pathname === currentUrl.pathname && nextUrl.search === currentUrl.search && nextUrl.hash === currentUrl.hash) return;
+
+      const shouldLeave = window.confirm('You have unsaved changes. Leave this page anyway?');
+      if (!shouldLeave) event.preventDefault();
+    };
+
+    document.addEventListener('click', handleDocumentClick, true);
+    return () => document.removeEventListener('click', handleDocumentClick, true);
+  }, [hasUnsavedChanges]);
 
   const markUnsaved = () => {
     setError('');
@@ -165,7 +199,7 @@ export default function SongForm() {
 
   const updateSection = (index, field, value) => {
     setSong((current) => ({
-      ...sanitizeSongForForm(current),
+      ...normalizeSongFormData(current),
       lyricsMonitor: normalizeLyricsMonitor(current.lyricsMonitor).map((section, itemIndex) => (
         itemIndex === index ? { ...section, [field]: value } : section
       )),
@@ -181,14 +215,14 @@ export default function SongForm() {
     setSong((current) => {
       const nextLyricsMonitor = [...normalizeLyricsMonitor(current.lyricsMonitor)];
       nextLyricsMonitor.splice(index + 1, 0, createBlankLyricsSection());
-      return sanitizeSongForForm({ ...current, lyricsMonitor: nextLyricsMonitor });
+      return normalizeSongFormData({ ...current, lyricsMonitor: nextLyricsMonitor });
     });
     markUnsaved();
   };
 
   const handleSectionTypeChange = (index, value) => {
     const currentSectionName = lyricsSections[index]?.section || '';
-    updateSection(index, 'section', value === 'Custom' && !SECTION_TYPES.includes(currentSectionName) ? currentSectionName : value);
+    updateSection(index, 'section', value === 'Custom' && !SAFE_SECTION_TYPES.includes(currentSectionName) ? currentSectionName : value);
   };
 
   const handleContentSourceChange = (index, value) => {
@@ -215,7 +249,7 @@ export default function SongForm() {
       const nextLyricsMonitor = [...normalizeLyricsMonitor(current.lyricsMonitor)];
       const sectionToDuplicate = nextLyricsMonitor[index] || createBlankLyricsSection();
       nextLyricsMonitor.splice(index + 1, 0, { ...sectionToDuplicate });
-      return sanitizeSongForForm({ ...current, lyricsMonitor: nextLyricsMonitor });
+      return normalizeSongFormData({ ...current, lyricsMonitor: nextLyricsMonitor });
     });
     markUnsaved();
   };
@@ -236,7 +270,7 @@ export default function SongForm() {
     try {
       const saved = await saveSong(song);
       if (!saved?.id) throw new Error('Song was not saved.');
-      const normalizedSavedSong = sanitizeSongForForm(saved);
+      const normalizedSavedSong = normalizeSongFormData(saved);
       setSong(normalizedSavedSong);
       setBaselineSnapshot(buildSongSnapshot(normalizedSavedSong));
       setSaveStatus('saved');
@@ -280,6 +314,18 @@ export default function SongForm() {
     );
   }
 
+  if (notFound) {
+    return (
+      <main className="page-shell">
+        <PageHeader eyebrow="Edit Song" title="Song not found" />
+        <section className="panel">
+          <p className="text-sm font-semibold text-slate-300">This song could not be found. It may have been deleted or is not available in the current offline cache.</p>
+          <button className="btn-primary mt-5" type="button" onClick={() => navigate('/songs')}>Back to Songs</button>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="page-shell">
       <PageHeader eyebrow={id ? 'Edit Song' : 'Add Song'} title={id ? `Update ${song.title}` : 'Add New Song'} />
@@ -302,13 +348,13 @@ export default function SongForm() {
             <label>
               <span className="label">Original Key</span>
               <select className="input" value={song.originalKey} onChange={(event) => update('originalKey', event.target.value)}>
-                {KEYS.map((key) => <option key={key} value={key}>{key}</option>)}
+                {SAFE_KEYS.map((key) => <option key={key} value={key}>{key}</option>)}
               </select>
             </label>
             <label>
               <span className="label">Selected Key</span>
               <select className="input" value={song.selectedKey} onChange={(event) => update('selectedKey', event.target.value)}>
-                {KEYS.map((key) => <option key={key} value={key}>{key}</option>)}
+                {SAFE_KEYS.map((key) => <option key={key} value={key}>{key}</option>)}
               </select>
             </label>
             <label>
@@ -366,7 +412,7 @@ export default function SongForm() {
           <div className="space-y-4">
             {lyricsSections.map((section, index) => {
               const sectionName = typeof section?.section === 'string' ? section.section : '';
-              const sectionTypeValue = SECTION_TYPES.includes(sectionName) ? sectionName : 'Custom';
+              const sectionTypeValue = SAFE_SECTION_TYPES.includes(sectionName) ? sectionName : 'Custom';
               const existingSections = lyricsSections
                 .map((item, itemIndex) => ({ ...item, itemIndex }))
                 .filter((item) => item.itemIndex !== index);
@@ -378,7 +424,7 @@ export default function SongForm() {
                       <label>
                         <span className="label">Section Type</span>
                         <select className="input" value={sectionTypeValue} onChange={(event) => handleSectionTypeChange(index, event.target.value)}>
-                          {SECTION_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                          {SAFE_SECTION_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
                         </select>
                       </label>
                       <label>

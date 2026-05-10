@@ -6,6 +6,7 @@ const SONGS_KEY = 'worshipSongs';
 const LINEUPS_KEY = 'worshipLineups';
 const SUPABASE_TIMEOUT_MS = 10000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DEFAULT_LYRICS_MONITOR_THEME = 'Dark Void';
 
 const sampleSong = {
   id: 'song_sample_001',
@@ -17,6 +18,7 @@ const sampleSong = {
   category: 'Worship',
   language: 'Filipino',
   chordChart: 'Intro:\nC  G  Am  F\n\nVerse 1:\n[Team-approved chord chart here]\n\nChorus:\nC  G  Am  F',
+  lyricsMonitorTheme: DEFAULT_LYRICS_MONITOR_THEME,
   lyricsMonitor: [
     {
       section: 'Verse 1',
@@ -61,6 +63,7 @@ function normalizeLyricsMonitorSection(section, index = 0) {
       text: section,
       vocalNotes: '',
       repeatCount: '',
+      theme: '',
     };
   }
 
@@ -96,10 +99,8 @@ export function normalizeLyricsMonitor(lyricsMonitor) {
     if (!trimmed) return [];
 
     const parsed = safeParse(trimmed, null);
-    if (Array.isArray(parsed)) {
-      return parsed
-        .map((section, index) => normalizeLyricsMonitorSection(section, index))
-        .filter(Boolean);
+    if (parsed !== null) {
+      return normalizeLyricsMonitor(parsed);
     }
 
     return [
@@ -346,6 +347,7 @@ export function normalizeSong(song = {}) {
     youtubeLink: toSafeString(song.youtubeLink, ''),
     chordChart: toSafeString(song.chordChart, ''),
     lyricsMonitor: normalizeLyricsMonitor(song.lyricsMonitor),
+    lyricsMonitorTheme: toSafeString(song.lyricsMonitorTheme, DEFAULT_LYRICS_MONITOR_THEME) || DEFAULT_LYRICS_MONITOR_THEME,
     notes: toSafeString(song.notes, ''),
     createdAt: song.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
