@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useBeforeUnload, useBlocker, useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import { KEYS, SECTION_TYPES } from '../utils/constants';
-import { getSongById, saveSong } from '../utils/storage';
+import { getSongById, normalizeLyricsMonitor, saveSong } from '../utils/storage';
 import { useOffline } from '../hooks/useOffline';
 import { useToast } from '../hooks/useToast';
 
@@ -26,27 +26,50 @@ const createBlankLyricsSection = () => ({
   text: '',
   vocalNotes: '',
   repeatCount: '',
+  theme: '',
+});
+
+const toSafeText = (value, fallback = '') => {
+  if (typeof value === 'string') return value;
+  if (value === null || value === undefined) return fallback;
+  return String(value);
+};
+
+const sanitizeSongForForm = (song = {}) => ({
+  ...blankSong,
+  ...song,
+  title: toSafeText(song.title, ''),
+  artist: toSafeText(song.artist, ''),
+  originalKey: toSafeText(song.originalKey, blankSong.originalKey) || blankSong.originalKey,
+  selectedKey: toSafeText(song.selectedKey, song.originalKey || blankSong.selectedKey) || toSafeText(song.originalKey, blankSong.selectedKey) || blankSong.selectedKey,
+  tempo: toSafeText(song.tempo, ''),
+  category: toSafeText(song.category, blankSong.category) || blankSong.category,
+  language: toSafeText(song.language, blankSong.language) || blankSong.language,
+  youtubeLink: toSafeText(song.youtubeLink, ''),
+  chordChart: toSafeText(song.chordChart, ''),
+  lyricsMonitor: normalizeLyricsMonitor(song.lyricsMonitor),
+  notes: toSafeText(song.notes, ''),
 });
 
 const buildSongSnapshot = (song = {}) => JSON.stringify({
-  title: song.title || '',
-  artist: song.artist || '',
-  originalKey: song.originalKey || 'C',
-  selectedKey: song.selectedKey || 'C',
-  tempo: song.tempo || '',
-  category: song.category || '',
-  language: song.language || '',
-  youtubeLink: song.youtubeLink || '',
-  chordChart: song.chordChart || '',
-  lyricsMonitor: Array.isArray(song.lyricsMonitor) ? song.lyricsMonitor : [],
-  notes: song.notes || '',
+  title: typeof song.title === 'string' ? song.title : String(song.title ?? ''),
+  artist: typeof song.artist === 'string' ? song.artist : String(song.artist ?? ''),
+  originalKey: typeof song.originalKey === 'string' ? song.originalKey : 'C',
+  selectedKey: typeof song.selectedKey === 'string' ? song.selectedKey : 'C',
+  tempo: typeof song.tempo === 'string' ? song.tempo : String(song.tempo ?? ''),
+  category: typeof song.category === 'string' ? song.category : '',
+  language: typeof song.language === 'string' ? song.language : '',
+  youtubeLink: typeof song.youtubeLink === 'string' ? song.youtubeLink : '',
+  chordChart: typeof song.chordChart === 'string' ? song.chordChart : String(song.chordChart ?? ''),
+  lyricsMonitor: normalizeLyricsMonitor(song.lyricsMonitor),
+  notes: typeof song.notes === 'string' ? song.notes : String(song.notes ?? ''),
 });
 
 const normalizeSectionName = (name = '') =>
   String(name).toLowerCase().replace(/[^a-z0-9]+/g, '');
 
 const getChordChartTextForSection = (chordChart = '', sectionName = '') => {
-  const chart = chordChart.trim();
+  const chart = String(chordChart ?? '').trim();
   if (!chart) return '';
 
   const requested = normalizeSectionName(sectionName);
@@ -87,17 +110,20 @@ export default function SongForm() {
   const { showToast } = useToast();
   const hasUnsavedChanges = !loading && buildSongSnapshot(song) !== baselineSnapshot;
   const blocker = useBlocker(hasUnsavedChanges);
+  const lyricsSections = normalizeLyricsMonitor(song.lyricsMonitor);
 
   useEffect(() => {
     async function loadSong() {
       try {
         if (id) {
           const existing = await getSongById(id);
-          const nextSong = existing || blankSong;
+          const nextSong = sanitizeSongForForm(existing || blankSong);
           setSong(nextSong);
           setBaselineSnapshot(buildSongSnapshot(nextSong));
         } else {
-          setBaselineSnapshot(buildSongSnapshot(blankSong));
+          const nextSong = sanitizeSongForForm(blankSong);
+          setSong(nextSong);
+          setBaselineSnapshot(buildSongSnapshot(nextSong));
         }
         setSaveStatus('idle');
       } catch (error) {
@@ -136,10 +162,11 @@ export default function SongForm() {
     setSong((current) => ({ ...current, [field]: value }));
     markUnsaved();
   };
+
   const updateSection = (index, field, value) => {
     setSong((current) => ({
-      ...current,
-      lyricsMonitor: current.lyricsMonitor.map((section, itemIndex) => (
+      ...sanitizeSongForForm(current),
+      lyricsMonitor: normalizeLyricsMonitor(current.lyricsMonitor).map((section, itemIndex) => (
         itemIndex === index ? { ...section, [field]: value } : section
       )),
     }));
@@ -147,20 +174,20 @@ export default function SongForm() {
   };
 
   const addSection = () => {
-    update('lyricsMonitor', [...song.lyricsMonitor, createBlankLyricsSection()]);
+    update('lyricsMonitor', [...lyricsSections, createBlankLyricsSection()]);
   };
 
   const addSectionBelow = (index) => {
     setSong((current) => {
-      const nextLyricsMonitor = [...current.lyricsMonitor];
+      const nextLyricsMonitor = [...normalizeLyricsMonitor(current.lyricsMonitor)];
       nextLyricsMonitor.splice(index + 1, 0, createBlankLyricsSection());
-      return { ...current, lyricsMonitor: nextLyricsMonitor };
+      return sanitizeSongForForm({ ...current, lyricsMonitor: nextLyricsMonitor });
     });
     markUnsaved();
   };
 
   const handleSectionTypeChange = (index, value) => {
-    const currentSectionName = song.lyricsMonitor[index]?.section || '';
+    const currentSectionName = lyricsSections[index]?.section || '';
     updateSection(index, 'section', value === 'Custom' && !SECTION_TYPES.includes(currentSectionName) ? currentSectionName : value);
   };
 
@@ -173,31 +200,31 @@ export default function SongForm() {
     }
 
     if (value === 'chordChart') {
-      updateSection(index, 'text', getChordChartTextForSection(song.chordChart, song.lyricsMonitor[index]?.section));
+      updateSection(index, 'text', getChordChartTextForSection(song.chordChart, lyricsSections[index]?.section));
       return;
     }
 
     if (value.startsWith('section:')) {
       const sourceIndex = Number(value.replace('section:', ''));
-      updateSection(index, 'text', song.lyricsMonitor[sourceIndex]?.text || '');
+      updateSection(index, 'text', lyricsSections[sourceIndex]?.text || '');
     }
   };
 
   const duplicateSection = (index) => {
     setSong((current) => {
-      const nextLyricsMonitor = [...current.lyricsMonitor];
-      const sectionToDuplicate = current.lyricsMonitor[index];
+      const nextLyricsMonitor = [...normalizeLyricsMonitor(current.lyricsMonitor)];
+      const sectionToDuplicate = nextLyricsMonitor[index] || createBlankLyricsSection();
       nextLyricsMonitor.splice(index + 1, 0, { ...sectionToDuplicate });
-      return { ...current, lyricsMonitor: nextLyricsMonitor };
+      return sanitizeSongForForm({ ...current, lyricsMonitor: nextLyricsMonitor });
     });
     markUnsaved();
   };
 
   const removeSection = (index) => {
-    const sectionName = song.lyricsMonitor[index]?.section || 'this section';
+    const sectionName = lyricsSections[index]?.section || 'this section';
     if (!window.confirm(`Delete "${sectionName}" from Lyrics Monitor?`)) return;
 
-    update('lyricsMonitor', song.lyricsMonitor.filter((_, itemIndex) => itemIndex !== index));
+    update('lyricsMonitor', lyricsSections.filter((_, itemIndex) => itemIndex !== index));
   };
 
   const handleSubmit = async (event) => {
@@ -209,11 +236,12 @@ export default function SongForm() {
     try {
       const saved = await saveSong(song);
       if (!saved?.id) throw new Error('Song was not saved.');
-      setSong(saved);
-      setBaselineSnapshot(buildSongSnapshot(saved));
+      const normalizedSavedSong = sanitizeSongForForm(saved);
+      setSong(normalizedSavedSong);
+      setBaselineSnapshot(buildSongSnapshot(normalizedSavedSong));
       setSaveStatus('saved');
       showToast(`Song "${song.title}" saved successfully!`, 'success');
-      if (!id && saved.id) navigate(`/songs/${saved.id}/edit`, { replace: true });
+      if (!id && normalizedSavedSong.id) navigate(`/songs/${normalizedSavedSong.id}/edit`, { replace: true });
     } catch (error) {
       console.error("Failed to save song:", error);
       const msg = error.message || 'Unable to save this song. Please try again.';
@@ -315,7 +343,7 @@ export default function SongForm() {
 
           <label>
             <span className="label">Chord Chart</span>
-            <textarea className="textarea min-h-[18rem] font-mono sm:min-h-72" value={song.chordChart} onChange={(event) => update('chordChart', event.target.value)} placeholder={'Intro:\nC  G  Am  F\n\nVerse 1:\n[Team-approved chord chart here]'} />
+            <textarea className="textarea min-h-[18rem] font-mono sm:min-h-72" value={song.chordChart || ''} onChange={(event) => update('chordChart', event.target.value)} placeholder={'Intro:\nC  G  Am  F\n\nVerse 1:\n[Team-approved chord chart here]'} />
           </label>
 
           <label>
@@ -336,9 +364,10 @@ export default function SongForm() {
           </div>
 
           <div className="space-y-4">
-            {song.lyricsMonitor.map((section, index) => {
-              const sectionTypeValue = SECTION_TYPES.includes(section.section) ? section.section : 'Custom';
-              const existingSections = song.lyricsMonitor
+            {lyricsSections.map((section, index) => {
+              const sectionName = typeof section?.section === 'string' ? section.section : '';
+              const sectionTypeValue = SECTION_TYPES.includes(sectionName) ? sectionName : 'Custom';
+              const existingSections = lyricsSections
                 .map((item, itemIndex) => ({ ...item, itemIndex }))
                 .filter((item) => item.itemIndex !== index);
 
@@ -378,7 +407,7 @@ export default function SongForm() {
                         <span className="label">Custom Section Name</span>
                         <input
                           className="input"
-                          value={section.section === 'Custom' ? '' : section.section || ''}
+                          value={sectionName === 'Custom' ? '' : sectionName}
                           onChange={(event) => updateSection(index, 'section', event.target.value)}
                           placeholder="Enter section name"
                         />
@@ -397,7 +426,7 @@ export default function SongForm() {
                       </button>
                     </div>
                   </div>
-                  <textarea className="textarea min-h-40" value={section.text} onChange={(event) => updateSection(index, 'text', event.target.value)} placeholder="Cue text or permitted lyrics" />
+                  <textarea className="textarea min-h-40" value={section.text || ''} onChange={(event) => updateSection(index, 'text', event.target.value)} placeholder="Cue text or permitted lyrics" />
                   <input className="input mt-3" value={section.vocalNotes || ''} onChange={(event) => updateSection(index, 'vocalNotes', event.target.value)} placeholder="Vocal notes" />
                   <input className="input mt-3" value={section.repeatCount || ''} onChange={(event) => updateSection(index, 'repeatCount', event.target.value)} placeholder="Repeat count" />
                 </div>

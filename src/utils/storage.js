@@ -44,20 +44,98 @@ function isValidUUID(id) {
   return typeof id === 'string' && UUID_PATTERN.test(id);
 }
 
+function toSafeString(value, fallback = '') {
+  if (typeof value === 'string') return value;
+  if (value === null || value === undefined) return fallback;
+  return String(value);
+}
+
+function getDefaultSectionName(index = 0) {
+  return `Section ${index + 1}`;
+}
+
+function normalizeLyricsMonitorSection(section, index = 0) {
+  if (typeof section === 'string') {
+    return {
+      section: getDefaultSectionName(index),
+      text: section,
+      vocalNotes: '',
+      repeatCount: '',
+    };
+  }
+
+  if (!section || typeof section !== 'object' || Array.isArray(section)) {
+    return null;
+  }
+
+  const nextSectionName = toSafeString(section.section ?? section.name ?? section.title, '').trim() || getDefaultSectionName(index);
+  const nextText = toSafeString(section.text ?? section.lyrics ?? section.content, '');
+  const nextVocalNotes = toSafeString(section.vocalNotes ?? section.notes, '');
+  const nextRepeatCount = toSafeString(section.repeatCount ?? section.repeat, '').trim();
+  const nextTheme = toSafeString(section.theme, '');
+
+  return {
+    ...section,
+    section: nextSectionName,
+    text: nextText,
+    vocalNotes: nextVocalNotes,
+    repeatCount: nextRepeatCount,
+    theme: nextTheme,
+  };
+}
+
+export function normalizeLyricsMonitor(lyricsMonitor) {
+  if (Array.isArray(lyricsMonitor)) {
+    return lyricsMonitor
+      .map((section, index) => normalizeLyricsMonitorSection(section, index))
+      .filter(Boolean);
+  }
+
+  if (typeof lyricsMonitor === 'string') {
+    const trimmed = lyricsMonitor.trim();
+    if (!trimmed) return [];
+
+    const parsed = safeParse(trimmed, null);
+    if (Array.isArray(parsed)) {
+      return parsed
+        .map((section, index) => normalizeLyricsMonitorSection(section, index))
+        .filter(Boolean);
+    }
+
+    return [
+      {
+        section: getDefaultSectionName(0),
+        text: trimmed,
+        vocalNotes: '',
+        repeatCount: '',
+        theme: '',
+      },
+    ];
+  }
+
+  if (lyricsMonitor && typeof lyricsMonitor === 'object') {
+    const normalizedSection = normalizeLyricsMonitorSection(lyricsMonitor, 0);
+    return normalizedSection ? [normalizedSection] : [];
+  }
+
+  return [];
+}
+
 // Convert camelCase app fields to snake_case Supabase columns
 function toSnakeCaseSong(song) {
+  const normalizedLyricsMonitor = normalizeLyricsMonitor(song.lyricsMonitor);
   const payload = {
-    title: song.title,
-    artist: song.artist || '',
-    original_key: song.originalKey || 'C',
-    selected_key: song.selectedKey || song.originalKey || 'C',
-    tempo: song.tempo || '',
-    category: song.category || 'Worship',
-    language: song.language || '',
-    youtube_link: song.youtubeLink || '',
-    chord_chart: song.chordChart || '',
-    lyrics_monitor: song.lyricsMonitor ? JSON.stringify(song.lyricsMonitor) : '[]',
-    notes: song.notes || '',
+    title: toSafeString(song.title, '').trim(),
+    artist: toSafeString(song.artist, ''),
+    original_key: toSafeString(song.originalKey, 'C') || 'C',
+    selected_key: toSafeString(song.selectedKey, song.originalKey || 'C') || toSafeString(song.originalKey, 'C') || 'C',
+    tempo: toSafeString(song.tempo, ''),
+    category: toSafeString(song.category, 'Worship') || 'Worship',
+    language: toSafeString(song.language, ''),
+    youtube_link: toSafeString(song.youtubeLink, ''),
+    chord_chart: toSafeString(song.chordChart, ''),
+    lyrics_monitor: JSON.stringify(normalizedLyricsMonitor),
+    notes: toSafeString(song.notes, ''),
     created_at: song.createdAt || new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
@@ -95,22 +173,22 @@ function toCamelCaseSong(dbSong) {
     ? safeParse(dbSong.lyrics_monitor, [])
     : (dbSong.lyrics_monitor || []);
 
-  return {
+  return normalizeSong({
     id: dbSong.id,
     title: dbSong.title,
-    artist: dbSong.artist || '',
-    originalKey: dbSong.original_key || 'C',
-    selectedKey: dbSong.selected_key || dbSong.original_key || 'C',
-    tempo: dbSong.tempo || '',
-    category: dbSong.category || 'Worship',
-    language: dbSong.language || '',
-    youtubeLink: dbSong.youtube_link || '',
-    chordChart: dbSong.chord_chart || '',
-    lyricsMonitor: Array.isArray(lyricsMonitor) ? lyricsMonitor : [],
-    notes: dbSong.notes || '',
+    artist: dbSong.artist,
+    originalKey: dbSong.original_key,
+    selectedKey: dbSong.selected_key || dbSong.original_key,
+    tempo: dbSong.tempo,
+    category: dbSong.category,
+    language: dbSong.language,
+    youtubeLink: dbSong.youtube_link,
+    chordChart: dbSong.chord_chart,
+    lyricsMonitor,
+    notes: dbSong.notes,
     createdAt: dbSong.created_at,
     updatedAt: dbSong.updated_at,
-  };
+  });
 }
 
 function toCamelCaseLineup(dbLineup) {
@@ -255,20 +333,20 @@ function normalizeLineupSongs(songs) {
   });
 }
 
-function normalizeSong(song) {
+export function normalizeSong(song = {}) {
   return {
     id: song.id || uid('song'),
-    title: song.title?.trim() || 'Untitled Song',
-    artist: song.artist || '',
-    originalKey: song.originalKey || 'C',
-    selectedKey: song.selectedKey || song.originalKey || 'C',
-    tempo: song.tempo || '',
-    category: song.category || 'Worship',
-    language: song.language || '',
-    youtubeLink: song.youtubeLink || '',
-    chordChart: song.chordChart || '',
-    lyricsMonitor: Array.isArray(song.lyricsMonitor) ? song.lyricsMonitor : [],
-    notes: song.notes || '',
+    title: toSafeString(song.title, '').trim() || 'Untitled Song',
+    artist: toSafeString(song.artist, ''),
+    originalKey: toSafeString(song.originalKey, 'C') || 'C',
+    selectedKey: toSafeString(song.selectedKey, song.originalKey || 'C') || toSafeString(song.originalKey, 'C') || 'C',
+    tempo: toSafeString(song.tempo, ''),
+    category: toSafeString(song.category, 'Worship') || 'Worship',
+    language: toSafeString(song.language, ''),
+    youtubeLink: toSafeString(song.youtubeLink, ''),
+    chordChart: toSafeString(song.chordChart, ''),
+    lyricsMonitor: normalizeLyricsMonitor(song.lyricsMonitor),
+    notes: toSafeString(song.notes, ''),
     createdAt: song.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -296,7 +374,7 @@ export async function getSongs() {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     console.log('App is offline, loading songs from offline cache');
     const offlineSongs = await getOfflineSongs();
-    if (offlineSongs && offlineSongs.length > 0) return offlineSongs;
+    if (offlineSongs && offlineSongs.length > 0) return offlineSongs.map(normalizeSong);
     return getLocalSongs();
   }
 
@@ -336,7 +414,10 @@ export async function getSongById(id) {
 
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     const offlineSongs = await getOfflineSongs();
-    return offlineSongs?.find((song) => song.id === id) || getLocalSongs().find((song) => song.id === id) || null;
+    const offlineMatch = offlineSongs?.find((song) => song?.id === id);
+    if (offlineMatch) return normalizeSong(offlineMatch);
+    const localMatch = getLocalSongs().find((song) => song.id === id);
+    return localMatch ? normalizeSong(localMatch) : null;
   }
 
   // Try Supabase first
@@ -362,7 +443,8 @@ export async function getSongById(id) {
   }
   
   // Fallback to localStorage
-  return getLocalSongs().find((song) => song.id === id) || null;
+  const localMatch = getLocalSongs().find((song) => song.id === id);
+  return localMatch ? normalizeSong(localMatch) : null;
 }
 
 export async function saveSong(song) {

@@ -4,13 +4,26 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import './index.css';
 
+const IS_DEV = import.meta.env.DEV;
+
 class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
-  static getDerivedStateFromError(_error) { return { hasError: true }; }
-  componentDidCatch(_error, _errorInfo) { console.error("App Crash:", _error, _errorInfo); }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    this.setState({ error, errorInfo });
+    console.error("App Crash:", error, errorInfo);
+    if (IS_DEV) {
+      console.group('ErrorBoundary details');
+      console.error('Error message:', error?.message || error);
+      console.error('Component stack:', errorInfo?.componentStack || 'No component stack available.');
+      console.groupEnd();
+    }
+  }
   render() {
     if (this.state.hasError) {
       return (
@@ -20,6 +33,15 @@ class ErrorBoundary extends Component {
           </div>
           <h1 className="text-2xl font-black text-white tracking-tight">Something went wrong</h1>
           <p className="text-slate-400 mt-2 max-w-xs font-medium">The application encountered an unexpected error. Please try refreshing.</p>
+          {IS_DEV && this.state.error && (
+            <details className="mt-4 max-w-xl rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-left text-xs text-slate-300">
+              <summary className="cursor-pointer font-bold text-slate-100">Developer details</summary>
+              <pre className="mt-3 whitespace-pre-wrap break-words">{this.state.error?.stack || this.state.error?.message || 'No error stack available.'}</pre>
+              {this.state.errorInfo?.componentStack && (
+                <pre className="mt-3 whitespace-pre-wrap break-words text-slate-400">{this.state.errorInfo.componentStack}</pre>
+              )}
+            </details>
+          )}
           <button 
             onClick={() => window.location.reload()} 
             className="mt-8 px-8 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-900/40 active:scale-95 transition-all"
