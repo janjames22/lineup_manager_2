@@ -37,7 +37,7 @@ export default function LineupList() {
         title="Service Plans"
         description="Create, review, monitor, and print weekly worship lineups."
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <DownloadOfflineButton onDownload={async () => { await getLineups(); }} label="Sync Lineups" syncKey="lineups" />
             <Link className="btn-primary" to="/lineups/new"><CalendarPlus size={18} aria-hidden="true" /> Create Lineup</Link>
           </div>
@@ -51,12 +51,12 @@ export default function LineupList() {
           {lineups.map((lineup) => (
             <article key={lineup.id} className="panel">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs font-black uppercase tracking-widest text-blue-400">{lineup.date} • {lineup.serviceTime}</p>
-                  <h2 className="mt-0.5 text-xl font-black text-white leading-tight">{lineup.worshipLeader || 'Worship Leader TBD'}</h2>
+                  <h2 className="mt-0.5 break-words text-xl font-black text-white leading-tight">{lineup.worshipLeader || 'Worship Leader TBD'}</h2>
                   <p className="text-sm font-bold text-slate-500">{lineup.songs.length} songs</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 sm:justify-end">
                   <Link className="btn-secondary" to={`/lineups/${lineup.id}`}><Eye size={16} aria-hidden="true" /> View</Link>
                   <Link className="btn-secondary" to={`/lineups/${lineup.id}/edit`}><Pencil size={16} aria-hidden="true" /> Edit</Link>
                   <Link className="btn-secondary" to={`/lineups/${lineup.id}/print`}><Printer size={16} aria-hidden="true" /> Print</Link>

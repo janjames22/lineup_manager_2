@@ -56,7 +56,7 @@ export default function SongLibrary() {
         title="Chord Charts"
         description="Search by title, key, category, or language."
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <DownloadOfflineButton onDownload={async () => { await getSongs(); }} label="Sync Songs" syncKey="songs" />
             <Link className="btn-primary" to="/songs/new"><Plus size={18} aria-hidden="true" /> Add Song</Link>
           </div>

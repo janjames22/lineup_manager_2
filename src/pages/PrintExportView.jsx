@@ -57,7 +57,7 @@ export default function PrintExportView() {
   }
 
   return (
-    <main className="print-sheet mx-auto max-w-5xl bg-white px-4 py-8 text-slate-900 sm:px-6 lg:px-8">
+    <main className="print-sheet mx-auto w-full max-w-5xl bg-white px-4 py-8 text-slate-900 sm:px-6 lg:px-8">
       <div className="mb-6 flex flex-wrap gap-2 print:hidden">
         <Link className="btn-secondary" to={`/lineups/${lineup.id}`}><ArrowLeft size={18} aria-hidden="true" /> Back</Link>
         <button className="btn-primary" type="button" onClick={() => window.print()}><Printer size={18} aria-hidden="true" /> Print / Export</button>
@@ -77,12 +77,12 @@ export default function PrintExportView() {
             const delta = song ? getSemitoneDelta(song.originalKey, lineupSong.selectedKey) : 0;
             return (
               <article key={`${lineupSong.id || lineupSong.songId}-${index}`} className="print-item print-divider break-inside-avoid border-b border-slate-200 pb-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="text-xl font-bold text-slate-950">{index + 1}. {lineupSong.title}</h3>
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                  <div className="min-w-0">
+                    <h3 className="break-words text-xl font-bold text-slate-950">{index + 1}. {lineupSong.title}</h3>
                     {lineupSong.notes && <p className="print-muted mt-1 text-sm text-slate-700">{lineupSong.notes}</p>}
                   </div>
-                  <span className="print-accent font-bold text-blue-700">Key: {lineupSong.selectedKey}</span>
+                  <span className="print-accent shrink-0 font-bold text-blue-700">Key: {lineupSong.selectedKey}</span>
                 </div>
                 <ChordChartViewer
                   className="mt-3"

@@ -74,8 +74,8 @@ export default function InstallBanner() {
   if (!isVisible || isStandalone) return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+5.75rem)] z-[100] p-4 animate-slide-up print:hidden sm:bottom-6 sm:left-6 sm:right-auto sm:w-[420px]">
-      <div className="relative overflow-hidden rounded-[2rem] border border-slate-700 bg-slate-900/90 p-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)] ring-1 ring-white/10 backdrop-blur-2xl">
+    <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+5.75rem)] z-[100] p-3 animate-slide-up print:hidden sm:bottom-6 sm:left-6 sm:right-auto sm:w-[420px] sm:p-4">
+      <div className="relative mx-auto max-w-full overflow-hidden rounded-2xl border border-slate-700 bg-slate-900/90 p-4 shadow-[0_20px_50px_rgba(0,0,0,0.6)] ring-1 ring-white/10 backdrop-blur-2xl sm:rounded-[2rem] sm:p-6">
         {/* Top accent bar */}
         <div className="absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600"></div>
 
@@ -92,9 +92,9 @@ export default function InstallBanner() {
             <div className="flex-shrink-0 size-14 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 p-2 shadow-xl ring-1 ring-white/10">
               <img src="/logo.png" alt="App Logo" className="h-full w-full object-contain" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h3 className="text-xl font-black text-white leading-tight tracking-tight">Install App</h3>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">Line Up Manager</p>
+              <p className="break-words text-[10px] font-black uppercase tracking-wider text-blue-400 sm:tracking-[0.2em]">Line Up Manager</p>
             </div>
           </div>
 

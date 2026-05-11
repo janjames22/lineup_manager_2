@@ -89,7 +89,7 @@ export default function SongDetail() {
         </div>
         <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-slate-800/50 pt-6">
           <button className="btn-secondary min-w-10 !text-xl" type="button" onClick={() => setTransposeAmount((value) => Math.max(-12, value - 1))}>-</button>
-          <div className="flex min-w-32 flex-col items-center justify-center rounded-xl bg-slate-950 p-2 ring-1 ring-white/10 shadow-inner">
+          <div className="flex min-w-28 flex-col items-center justify-center rounded-xl bg-slate-950 p-2 ring-1 ring-white/10 shadow-inner sm:min-w-32">
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Transpose</span>
             <span className="text-xl font-black text-white">{transposeAmount > 0 ? `+${transposeAmount}` : transposeAmount}</span>
           </div>
@@ -115,7 +115,7 @@ export default function SongDetail() {
               {song.lyricsMonitor.length ? song.lyricsMonitor.map((section, index) => (
                 <div key={`${section.section}-${index}`} className="rounded-2xl bg-slate-950/40 p-5 border border-slate-800/50">
                   <p className="text-xs font-black uppercase tracking-widest text-blue-400">{section.section}</p>
-                  <p className="mt-2.5 whitespace-pre-wrap text-base font-medium text-slate-200">{section.text || 'No cue text.'}</p>
+                  <p className="mt-2.5 whitespace-pre-wrap break-words text-base font-medium text-slate-200">{section.text || 'No cue text.'}</p>
                   {section.vocalNotes && <p className="mt-3 text-sm font-bold text-blue-300 flex items-center gap-2">
                     <span className="size-1.5 rounded-full bg-blue-500"></span>
                     {section.vocalNotes}

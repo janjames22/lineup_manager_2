@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import InstallBanner from './components/InstallBanner';
 import Dashboard from './pages/Dashboard';
@@ -29,6 +29,7 @@ function devLog(...args) {
 }
 
 export default function App() {
+  const location = useLocation();
   const registrationRef = useRef(null);
   const lastUpdateCheckAtRef = useRef(0);
   const waitingWorkerLoggedRef = useRef(false);
@@ -86,6 +87,9 @@ export default function App() {
     : [false, () => {}];
     
   const promptVisible = needUpdate || manualNeedUpdate;
+  const isLyricsMonitorRoute = /^\/lyrics-monitor\/[^/]+$/.test(location.pathname) || /^\/lineups\/[^/]+\/monitor$/.test(location.pathname);
+  const isPrintRoute = /^\/lineups\/[^/]+\/print$/.test(location.pathname);
+  const showAppChrome = !isLyricsMonitorRoute && !isPrintRoute;
 
   useEffect(() => {
     if (!needUpdate) return;
@@ -265,9 +269,9 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-dvh bg-slate-950 text-slate-100 selection:bg-blue-500/30 pb-24 lg:pb-0">
-      <Navbar />
-      <InstallBanner />
+    <div className={`min-h-dvh w-full max-w-full overflow-x-hidden bg-slate-950 text-slate-100 selection:bg-blue-500/30 ${showAppChrome ? 'pb-24 lg:pb-0' : ''}`}>
+      {showAppChrome && <Navbar />}
+      {showAppChrome && <InstallBanner />}
       <ToastContainer />
       
       {promptVisible && (
@@ -277,7 +281,7 @@ export default function App() {
         />
       )}
       
-      <div className="mx-auto max-w-7xl">
+      <div className="mx-auto w-full max-w-7xl min-w-0">
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/songs" element={<SongLibrary />} />
@@ -296,24 +300,26 @@ export default function App() {
         </Routes>
       </div>
 
-      <footer className="border-t border-slate-800/50 bg-slate-900/60 px-4 pt-4 pb-[calc(6.75rem+env(safe-area-inset-bottom,0px))] print:hidden sm:px-6 sm:py-4 lg:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-black text-white tracking-tight">About & Updates</p>
-            <p className="text-xs font-medium text-slate-400">Installed app not showing fresh changes yet? Check for updates here.</p>
+      {showAppChrome && (
+        <footer className="border-t border-slate-800/50 bg-slate-900/60 px-4 pt-4 pb-[calc(6.75rem+env(safe-area-inset-bottom,0px))] print:hidden sm:px-6 sm:py-4 lg:px-8">
+          <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-black text-white tracking-tight">About & Updates</p>
+              <p className="text-xs font-medium text-slate-400">Installed app not showing fresh changes yet? Check for updates here.</p>
+            </div>
+            <button
+              type="button"
+              className="btn-secondary w-full sm:w-auto"
+              onClick={checkForUpdates}
+              disabled={checkingForUpdate}
+            >
+              {checkingForUpdate ? 'Checking...' : 'Check for updates'}
+            </button>
           </div>
-          <button
-            type="button"
-            className="btn-secondary w-full sm:w-auto"
-            onClick={checkForUpdates}
-            disabled={checkingForUpdate}
-          >
-            {checkingForUpdate ? 'Checking...' : 'Check for updates'}
-          </button>
-        </div>
-      </footer>
+        </footer>
+      )}
 
-      <BottomNav />
+      {showAppChrome && <BottomNav />}
     </div>
   );
 }

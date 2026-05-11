@@ -6,6 +6,15 @@
     letter-spacing: -0.01em;
   }
 
+  html,
+  body,
+  #root {
+    width: 100%;
+    max-width: 100%;
+    min-height: 100%;
+    overflow-x: hidden;
+  }
+
   body {
     margin: 0;
     min-width: 320px;
@@ -36,12 +45,12 @@
 
 @layer components {
   .page-shell {
-    @apply mx-auto max-w-7xl px-4 pt-6 pb-[calc(9rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:py-8 lg:px-8;
+    @apply mx-auto w-full max-w-7xl min-w-0 px-4 pt-6 pb-[calc(9rem+env(safe-area-inset-bottom,0px))] sm:px-6 sm:py-8 lg:px-8;
     animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
   .panel {
-    @apply rounded-2xl border border-slate-800/50 bg-slate-900/50 p-4 backdrop-blur-md shadow-xl transition-all duration-300 sm:p-6 lg:p-8;
+    @apply min-w-0 max-w-full rounded-2xl border border-slate-800/50 bg-slate-900/50 p-4 backdrop-blur-md shadow-xl transition-all duration-300 sm:p-6 lg:p-8;
   }
 
   .panel:hover {
@@ -57,18 +66,18 @@
   }
 
   .input {
-    @apply min-h-12 w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-[16px] text-white shadow-sm outline-none transition-all duration-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-500;
+    @apply min-h-12 w-full max-w-full min-w-0 rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-[16px] text-white shadow-sm outline-none transition-all duration-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-500;
   }
 
   .textarea {
-    @apply min-h-32 w-full resize-y rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-[16px] text-white shadow-sm outline-none transition-all duration-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-500;
+    @apply min-h-32 w-full max-w-full min-w-0 resize-y rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-[16px] text-white shadow-sm outline-none transition-all duration-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-500;
   }
 
   .btn-primary,
   .btn-secondary,
   .btn-danger,
   .btn-dark {
-    @apply inline-flex max-w-full flex-wrap items-center justify-center gap-2 rounded-xl px-5 py-3 text-center text-[15px] font-bold leading-tight transition-all duration-200 active:scale-[0.98] min-h-[44px];
+    @apply inline-flex max-w-full min-w-0 flex-wrap items-center justify-center gap-2 rounded-xl px-5 py-3 text-center text-[15px] font-bold leading-tight transition-all duration-200 active:scale-[0.98] min-h-[44px];
   }
 
   .btn-primary {
@@ -96,12 +105,16 @@
   }
 
   .quick-action {
-    @apply inline-flex items-center gap-3 rounded-xl border border-slate-800/80 bg-slate-900/50 px-4 py-4 font-semibold text-slate-200 transition-all duration-200 hover:border-blue-500/50 hover:bg-blue-950/30 hover:text-blue-400 hover:shadow-lg active:scale-[0.99];
+    @apply inline-flex min-w-0 items-center gap-3 rounded-xl border border-slate-800/80 bg-slate-900/50 px-4 py-4 font-semibold text-slate-200 transition-all duration-200 hover:border-blue-500/50 hover:bg-blue-950/30 hover:text-blue-400 hover:shadow-lg active:scale-[0.99];
   }
 
   .chord-sheet {
-    @apply min-h-64 max-w-full overflow-x-auto whitespace-pre rounded-xl bg-slate-950 p-6 font-mono text-[16px] leading-relaxed text-blue-100 shadow-inner border border-slate-800/50;
+    @apply h-[min(24rem,60dvh)] max-w-full overflow-auto whitespace-pre rounded-xl bg-slate-950 p-4 font-mono text-[16px] leading-relaxed text-blue-100 shadow-inner border border-slate-800/50 sm:p-6 lg:h-[28rem];
     letter-spacing: 0;
+  }
+
+  .quick-action > span:last-child {
+    min-width: 0;
   }
 }
 
@@ -208,6 +221,7 @@
 
   .chord-sheet,
   .print-sheet pre {
+    height: auto !important;
     overflow: visible !important;
     white-space: pre !important;
     color: #111827 !important;

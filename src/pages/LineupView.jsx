@@ -111,17 +111,17 @@ export default function LineupView() {
             const delta = song ? getSemitoneDelta(song.originalKey, lineupSong.selectedKey) : 0;
             return (
               <article key={`${lineupSong.id || lineupSong.songId}-${index}`} className="panel flex flex-col gap-4">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-1">
-                      <span className="flex size-7 items-center justify-center rounded-full bg-blue-950 text-sm font-black text-blue-400 ring-1 ring-blue-500/20 shadow-lg">{index + 1}</span>
-                      <h2 className="text-2xl font-black text-white tracking-tight">{lineupSong.title}</h2>
+                <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex min-w-0 items-center gap-3">
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-blue-950 text-sm font-black text-blue-400 ring-1 ring-blue-500/20 shadow-lg">{index + 1}</span>
+                      <h2 className="min-w-0 break-words text-2xl font-black text-white tracking-tight">{lineupSong.title}</h2>
                     </div>
-                    {song?.artist && <p className="text-slate-400 font-bold ml-10">{song.artist}</p>}
-                    {lineupSong.notes && <p className="mt-2 ml-10 text-sm font-medium text-slate-300 bg-slate-950/50 p-3 rounded-xl border border-slate-800/50">{lineupSong.notes}</p>}
+                    {song?.artist && <p className="break-words text-slate-400 font-bold sm:ml-10">{song.artist}</p>}
+                    {lineupSong.notes && <p className="mt-2 break-words text-sm font-medium text-slate-300 bg-slate-950/50 p-3 rounded-xl border border-slate-800/50 sm:ml-10">{lineupSong.notes}</p>}
                   </div>
                   
-                  <div className="flex flex-wrap items-center sm:flex-col sm:items-end gap-3 sm:ml-4 mt-2 sm:mt-0">
+                  <div className="mt-2 flex flex-wrap items-center gap-3 sm:ml-4 sm:mt-0 sm:flex-col sm:items-end">
                     <div className="flex items-center gap-1 rounded-xl bg-slate-950/50 p-1.5 shadow-inner border border-slate-800/50">
                       <button className="grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-800 hover:text-white transition-all" onClick={() => updateSongKey(index, -1)} title="Transpose Down">
                         <ChevronDown size={20} />
@@ -150,7 +150,7 @@ export default function LineupView() {
                   </div>
                 </div>
                 
-                <div className="mt-2 ml-10">
+                <div className="mt-2 min-w-0 max-w-full sm:ml-10">
                   <ChordChartViewer
                     preClassName="!p-5 !bg-slate-950/80 !border-slate-800/50"
                     chordChart={song ? transposeChords(song.chordChart, delta) : ''}

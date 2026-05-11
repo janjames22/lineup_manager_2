@@ -6,12 +6,12 @@ export default function SongCard({ song }) {
   return (
     <article className="panel flex flex-col justify-between p-5 sm:p-6 h-full">
       <div>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-black text-white leading-tight">{song.title}</h2>
-            <p className="mt-0.5 text-sm font-bold text-slate-400">{song.artist || 'Unknown artist'}</p>
+        <div className="flex min-w-0 items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="break-words text-xl font-black text-white leading-tight">{song.title}</h2>
+            <p className="mt-0.5 break-words text-sm font-bold text-slate-400">{song.artist || 'Unknown artist'}</p>
           </div>
-          <span className="rounded-lg bg-blue-950/40 px-3 py-1.5 text-sm font-black text-blue-400 shadow-sm border border-blue-900/50">{song.selectedKey || song.originalKey}</span>
+          <span className="shrink-0 rounded-lg bg-blue-950/40 px-3 py-1.5 text-sm font-black text-blue-400 shadow-sm border border-blue-900/50">{song.selectedKey || song.originalKey}</span>
         </div>
         <dl className="mt-5 grid grid-cols-2 gap-3 text-sm">
           <div className="rounded-xl bg-slate-950/50 p-2.5 border border-slate-800/50">

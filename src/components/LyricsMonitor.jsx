@@ -60,16 +60,16 @@ export default function LyricsMonitor({ title, keyName, sections, index, onIndex
 
   return (
     <main className={`flex min-h-dvh flex-col transition-colors duration-700 ease-in-out ${activeTheme.classes}`}>
-      <div 
-        className="flex flex-col gap-3 border-b border-white/10 px-4 py-4 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 print:hidden"
-        style={{ paddingTop: 'env(safe-area-inset-top, 1rem)' }}
+      <div
+        className="flex min-w-0 flex-col gap-3 border-b border-white/10 px-4 pb-4 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 print:hidden"
+        style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top, 0px))' }}
       >
-        <div>
+        <div className="min-w-0">
           <p className={`text-sm font-medium tracking-wider opacity-90 ${activeTheme.labelClasses}`}>{keyName ? `KEY: ${keyName}` : 'LYRICS MONITOR'}</p>
-          <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+          <h1 className="break-words text-2xl font-bold tracking-tight">{title}</h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select className="input max-w-xs bg-white/10 border-white/20 text-white [&>option]:text-slate-900 focus:bg-white/20 transition-colors" value={currentIndex} onChange={(event) => onIndexChange(Number(event.target.value))}>
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+          <select className="input max-w-full bg-white/10 border-white/20 text-white [&>option]:text-slate-900 focus:bg-white/20 transition-colors sm:max-w-xs" value={currentIndex} onChange={(event) => onIndexChange(Number(event.target.value))}>
             {safeSections.map((section, sectionIndex) => (
               <option key={`${section.section}-${sectionIndex}`} value={sectionIndex}>
                 {section.section || `Section ${sectionIndex + 1}`}
@@ -86,27 +86,27 @@ export default function LyricsMonitor({ title, keyName, sections, index, onIndex
         </div>
       </div>
 
-      <section className="grid flex-1 place-items-center px-4 py-10 text-center relative overflow-hidden">
+      <section className="relative grid min-w-0 flex-1 place-items-center overflow-hidden px-4 py-8 text-center sm:py-10">
         <div className={`pointer-events-none absolute inset-0 transition-opacity duration-700 ${activeTheme.glowClasses}`} aria-hidden="true" />
-        <div key={currentIndex} className="w-full max-w-6xl animate-fade-in relative z-10">
-          <p className={`mb-8 text-xl font-bold tracking-[0.2em] uppercase opacity-90 drop-shadow-md ${activeTheme.labelClasses}`}>{current.section}</p>
-          <pre className="whitespace-pre-wrap font-sans text-[2rem] md:text-5xl lg:text-[4rem] font-bold leading-[1.3] text-white drop-shadow-lg">{current.text || 'No cue text for this section.'}</pre>
-          {current.vocalNotes && <p className={`mt-12 text-2xl font-medium drop-shadow-md ${activeTheme.notesClasses}`}>{current.vocalNotes}</p>}
-          {current.repeatCount && <p className={`mt-4 text-xl font-medium drop-shadow-md ${activeTheme.repeatClasses}`}>Repeat: {current.repeatCount}</p>}
+        <div key={currentIndex} className="relative z-10 w-full max-w-6xl min-w-0 animate-fade-in">
+          <p className={`mb-6 break-words text-lg font-bold uppercase tracking-wider opacity-90 drop-shadow-md sm:mb-8 sm:text-xl sm:tracking-[0.2em] ${activeTheme.labelClasses}`}>{current.section}</p>
+          <pre className="max-w-full whitespace-pre-wrap break-words font-sans text-3xl font-bold leading-[1.25] text-white drop-shadow-lg sm:text-4xl md:text-5xl lg:text-[4rem] lg:leading-[1.3]">{current.text || 'No cue text for this section.'}</pre>
+          {current.vocalNotes && <p className={`mt-8 break-words text-xl font-medium drop-shadow-md sm:mt-12 sm:text-2xl ${activeTheme.notesClasses}`}>{current.vocalNotes}</p>}
+          {current.repeatCount && <p className={`mt-4 break-words text-lg font-medium drop-shadow-md sm:text-xl ${activeTheme.repeatClasses}`}>Repeat: {current.repeatCount}</p>}
         </div>
       </section>
 
-      <div 
-        className="flex items-center justify-between border-t border-white/10 px-4 py-4 sm:px-6 print:hidden"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 1rem)' }}
+      <div
+        className="flex items-center justify-between gap-2 border-t border-white/10 px-4 pt-4 sm:px-6 print:hidden"
+        style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
       >
-        <button className="btn-dark" type="button" onClick={() => go(-1)} disabled={currentIndex === 0}>
+        <button className="btn-dark !px-3 sm:!px-5" type="button" onClick={() => go(-1)} disabled={currentIndex === 0}>
           <ChevronLeft size={20} aria-hidden="true" /> Previous
         </button>
-        <span className="text-sm text-slate-300">
+        <span className="shrink-0 text-sm text-slate-300">
           {currentIndex + 1} / {safeSections.length}
         </span>
-        <button className="btn-dark" type="button" onClick={() => go(1)} disabled={currentIndex === safeSections.length - 1}>
+        <button className="btn-dark !px-3 sm:!px-5" type="button" onClick={() => go(1)} disabled={currentIndex === safeSections.length - 1}>
           Next <ChevronRight size={20} aria-hidden="true" />
         </button>
       </div>

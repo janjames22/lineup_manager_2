@@ -60,7 +60,7 @@ export default function DownloadOfflineButton({ onDownload, label = 'Download Of
       onClick={handleDownload}
       disabled={buttonStatus === 'syncing'}
       title="Downloaded songs and lineups can be opened even without internet."
-      className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black transition-all duration-300 active:scale-95 ${buttonClasses[buttonStatus] || buttonClasses.idle}`}
+      className={`inline-flex min-h-11 max-w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-center text-sm font-black transition-all duration-300 active:scale-95 ${buttonClasses[buttonStatus] || buttonClasses.idle}`}
     >
       {icon[buttonStatus] || icon.idle}
       <span>{buttonCopy[buttonStatus] || label}</span>
