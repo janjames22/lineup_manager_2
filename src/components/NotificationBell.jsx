@@ -6,6 +6,21 @@ export default function NotificationBell({ notifications, unreadCount, onMarkAll
   const containerRef = useRef(null);
 
   useEffect(() => {
+    console.log('NotificationBell mounted in Navbar/App layout.');
+    return () => {
+      console.log('NotificationBell unmounted from Navbar/App layout.');
+    };
+  }, []);
+
+  useEffect(() => {
+    console.log('NotificationBell render state:', {
+      notificationCount: notifications.length,
+      unreadCount,
+      open,
+    });
+  }, [notifications, unreadCount, open]);
+
+  useEffect(() => {
     if (!open) return undefined;
 
     const onPointerDown = (event) => {

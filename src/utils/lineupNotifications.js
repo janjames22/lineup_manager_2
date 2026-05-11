@@ -3,20 +3,22 @@ export const LINEUP_NOTIFICATIONS_KEY = 'lineupManagerNotifications';
 const LOCAL_CREATED_TTL_MS = 5 * 60 * 1000;
 const MAX_NOTIFICATION_COUNT = 20;
 
-function readJson(key, fallback) {
+function readJson(key, fallback, storage = null) {
   if (typeof window === 'undefined') return fallback;
 
   try {
-    const value = window.localStorage.getItem(key);
+    const targetStorage = storage || window.localStorage;
+    const value = targetStorage.getItem(key);
     return value ? JSON.parse(value) : fallback;
   } catch {
     return fallback;
   }
 }
 
-function writeJson(key, value) {
+function writeJson(key, value, storage = null) {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(key, JSON.stringify(value));
+  const targetStorage = storage || window.localStorage;
+  targetStorage.setItem(key, JSON.stringify(value));
 }
 
 function pruneLocalCreatedLineups(items) {
@@ -45,8 +47,8 @@ export function markLineupCreatedLocally(lineupOrId) {
   const signature = typeof lineupOrId === 'object' ? getLineupSignature(lineupOrId) : '';
   if (!id && !signature) return;
 
-  const existing = pruneLocalCreatedLineups(readJson(LOCAL_CREATED_LINEUPS_KEY, []));
-  writeJson(LOCAL_CREATED_LINEUPS_KEY, [{ id, signature, createdAt: Date.now() }, ...existing]);
+  const existing = pruneLocalCreatedLineups(readJson(LOCAL_CREATED_LINEUPS_KEY, [], window.sessionStorage));
+  writeJson(LOCAL_CREATED_LINEUPS_KEY, [{ id, signature, createdAt: Date.now() }, ...existing], window.sessionStorage);
 }
 
 export function consumeLocalLineupCreation(lineupOrId) {
@@ -54,9 +56,9 @@ export function consumeLocalLineupCreation(lineupOrId) {
   const signature = typeof lineupOrId === 'object' ? getLineupSignature(lineupOrId) : '';
   if (!id && !signature) return false;
 
-  const existing = pruneLocalCreatedLineups(readJson(LOCAL_CREATED_LINEUPS_KEY, []));
+  const existing = pruneLocalCreatedLineups(readJson(LOCAL_CREATED_LINEUPS_KEY, [], window.sessionStorage));
   const wasLocal = existing.some((item) => (id && item.id === id) || (signature && item.signature === signature));
-  writeJson(LOCAL_CREATED_LINEUPS_KEY, existing.filter((item) => item.id !== id && item.signature !== signature));
+  writeJson(LOCAL_CREATED_LINEUPS_KEY, existing.filter((item) => item.id !== id && item.signature !== signature), window.sessionStorage);
   return wasLocal;
 }
 
