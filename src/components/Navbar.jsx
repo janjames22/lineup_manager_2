@@ -1,4 +1,4 @@
-import { BookOpen, CalendarDays, Home, Music2, Plus } from 'lucide-react';
+import { BookOpen, CalendarDays, Home, Plus, QrCode } from 'lucide-react';
 import { NavLink, Link } from 'react-router-dom';
 import OfflineStatusBadge from './OfflineStatusBadge';
 
@@ -7,7 +7,7 @@ const navLink = ({ isActive }) =>
     isActive ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
   }`;
 
-export default function Navbar() {
+export default function Navbar({ onShareApp }) {
   return (
     <header className="border-b border-slate-800/50 bg-slate-900/95 backdrop-blur-md sticky top-0 z-40 print:hidden" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-3 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
@@ -31,12 +31,18 @@ export default function Navbar() {
           <NavLink to="/lineups" className={navLink}>
             <CalendarDays size={16} aria-hidden="true" /> Lineups
           </NavLink>
+          <button className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm font-bold text-slate-300 transition-all duration-200 hover:border-slate-600 hover:bg-slate-800 hover:text-white" type="button" onClick={onShareApp}>
+            <QrCode size={16} aria-hidden="true" /> Share App QR
+          </button>
           <Link to="/songs/new" className="inline-flex items-center gap-2 rounded-md bg-amber-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-400">
             <Plus size={16} aria-hidden="true" /> Add Song
           </Link>
         </nav>
-        <div className="flex items-center gap-2 lg:hidden">
+        <div className="flex flex-wrap items-center gap-2 lg:hidden">
           <OfflineStatusBadge />
+          <button className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm font-bold text-slate-200" type="button" onClick={onShareApp}>
+            <QrCode size={16} aria-hidden="true" /> Install QR
+          </button>
         </div>
       </div>
     </header>

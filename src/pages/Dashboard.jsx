@@ -1,4 +1,4 @@
-import { CalendarPlus, Library, Music2, Monitor } from 'lucide-react';
+import { CalendarPlus, Library, Music2, Monitor, QrCode } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
@@ -6,7 +6,7 @@ import SongCard from '../components/SongCard';
 import LoadingScreen from '../components/LoadingScreen';
 import { getSongs, getUpcomingLineup } from '../utils/storage';
 
-export default function Dashboard() {
+export default function Dashboard({ onShareApp }) {
   const [songs, setSongs] = useState([]);
   const [upcoming, setUpcoming] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -112,6 +112,13 @@ export default function Dashboard() {
                 <span className="break-words text-[10px] font-bold uppercase tracking-widest text-slate-500">Plan a new service</span>
               </span>
             </Link>
+            <button className="quick-action text-left" type="button" onClick={onShareApp}>
+              <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-blue-950/50 text-blue-300 shadow-sm ring-1 ring-white/10"><QrCode size={20} aria-hidden="true" /></span>
+              <span className="flex min-w-0 flex-col">
+                <span className="break-words font-black text-white tracking-tight">Share App QR</span>
+                <span className="break-words text-[10px] font-bold uppercase tracking-widest text-slate-500">Open or install on another phone</span>
+              </span>
+            </button>
           </div>
         </div>
       </section>

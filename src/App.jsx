@@ -17,6 +17,7 @@ import UpdatePrompt from './components/UpdatePrompt';
 import BottomNav from './components/BottomNav';
 import ToastContainer from './components/ToastContainer';
 import { useToast } from './hooks/useToast';
+import ShareAppQrModal from './components/ShareAppQrModal';
 
 const UPDATE_CHECK_TIMEOUT_MS = 5000;
 const FOREGROUND_UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
@@ -37,6 +38,7 @@ export default function App() {
   const [swRegistration, setSwRegistration] = useState(null);
   const [manualNeedUpdate, setManualNeedUpdate] = useState(false);
   const [checkingForUpdate, setCheckingForUpdate] = useState(false);
+  const [shareQrOpen, setShareQrOpen] = useState(false);
   const { showToast } = useToast();
 
   const markWaitingWorkerAvailable = () => {
@@ -270,9 +272,10 @@ export default function App() {
 
   return (
     <div className={`min-h-dvh w-full max-w-full overflow-x-hidden bg-slate-950 text-slate-100 selection:bg-blue-500/30 ${showAppChrome ? 'pb-24 lg:pb-0' : ''}`}>
-      {showAppChrome && <Navbar />}
+      {showAppChrome && <Navbar onShareApp={() => setShareQrOpen(true)} />}
       {showAppChrome && <InstallBanner />}
       <ToastContainer />
+      <ShareAppQrModal open={shareQrOpen} onClose={() => setShareQrOpen(false)} />
       
       {promptVisible && (
         <UpdatePrompt 
@@ -283,7 +286,7 @@ export default function App() {
       
       <div className="mx-auto w-full max-w-7xl min-w-0">
         <Routes>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<Dashboard onShareApp={() => setShareQrOpen(true)} />} />
           <Route path="/songs" element={<SongLibrary />} />
           <Route path="/songs/new" element={<SongForm />} />
           <Route path="/songs/add" element={<Navigate to="/songs/new" replace />} />
