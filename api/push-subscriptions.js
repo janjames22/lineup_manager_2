@@ -27,7 +27,7 @@ export default async function handler(request, response) {
     return;
   }
 
-  const { endpoint, p256dh, auth, userAgent } = request.body || {};
+  const { endpoint, p256dh, auth, userAgent, user_agent: userAgentSnake } = request.body || {};
   if (!endpoint || !p256dh || !auth) {
     response.status(400).json({ error: 'Missing push subscription fields.' });
     return;
@@ -40,7 +40,7 @@ export default async function handler(request, response) {
         endpoint,
         p256dh,
         auth,
-        user_agent: userAgent || request.headers['user-agent'] || '',
+        user_agent: userAgentSnake || userAgent || request.headers['user-agent'] || '',
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'endpoint' }

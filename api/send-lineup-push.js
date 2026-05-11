@@ -20,6 +20,16 @@ function formatLineupBody(lineup = {}) {
   return schedule || 'New lineup added';
 }
 
+function createPayload({ title, body, url, tag, lineupId }) {
+  return JSON.stringify({
+    title: title || 'Line Up Manager',
+    body: body || 'New notification',
+    url: url || '/lineups',
+    tag: tag || (lineupId ? `lineup-${lineupId}` : 'lineup-manager'),
+    lineupId: lineupId || null,
+  });
+}
+
 function getVapidConfig() {
   const publicKey = process.env.VITE_VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;
@@ -57,22 +67,39 @@ export default async function handler(request, response) {
     return;
   }
 
-  const { lineupId, url, excludeEndpoint } = request.body || {};
-  if (!lineupId) {
+  const { lineupId, url, excludeEndpoint, test, title, body, tag } = request.body || {};
+  if (!lineupId && !test) {
     response.status(400).json({ error: 'Missing lineupId.' });
     return;
   }
 
-  const { data: lineup, error: lineupError } = await supabase
-    .from('lineups')
-    .select('*')
-    .eq('id', lineupId)
-    .single();
+  let payload;
+  if (test) {
+    payload = createPayload({
+      title: title || 'Line Up Manager',
+      body: body || 'Test phone notification',
+      url: url || '/lineups',
+      tag: tag || 'lineup-manager-test',
+    });
+  } else {
+    const { data: lineup, error: lineupError } = await supabase
+      .from('lineups')
+      .select('*')
+      .eq('id', lineupId)
+      .single();
 
-  if (lineupError || !lineup) {
-    console.error('[LineupNotifications] failed to load lineup for push:', lineupError);
-    response.status(404).json({ error: 'Lineup not found.' });
-    return;
+    if (lineupError || !lineup) {
+      console.error('[LineupNotifications] failed to load lineup for push:', lineupError);
+      response.status(404).json({ error: 'Lineup not found.' });
+      return;
+    }
+
+    payload = createPayload({
+      title: 'New lineup added',
+      body: formatLineupBody(lineup),
+      url: url || `/lineups/${lineup.id}`,
+      lineupId: lineup.id,
+    });
   }
 
   const { data: subscriptions, error: subscriptionError } = await supabase
@@ -87,13 +114,6 @@ export default async function handler(request, response) {
 
   webPush.setVapidDetails(vapid.subject, vapid.publicKey, vapid.privateKey);
 
-  const targetUrl = url || `/lineups/${lineup.id}`;
-  const payload = JSON.stringify({
-    title: 'New lineup added',
-    body: formatLineupBody(lineup),
-    lineupId: lineup.id,
-    url: targetUrl,
-  });
   const expiredEndpoints = [];
   const targets = (subscriptions || []).filter((subscription) => subscription.endpoint !== excludeEndpoint);
 

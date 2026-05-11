@@ -101,11 +101,17 @@ CREATE POLICY "Allow public delete on lineups" ON lineups
 -- ============================================
 -- PUSH SUBSCRIPTION POLICIES
 -- ============================================
--- Public clients can register or refresh their own browser endpoint.
-CREATE POLICY "Allow public insert on push subscriptions" ON public.push_subscriptions
+DROP POLICY IF EXISTS "Allow public insert on push subscriptions" ON public.push_subscriptions;
+DROP POLICY IF EXISTS "Allow public update on push subscriptions" ON public.push_subscriptions;
+DROP POLICY IF EXISTS "Allow public push subscription insert" ON public.push_subscriptions;
+DROP POLICY IF EXISTS "Allow public push subscription update" ON public.push_subscriptions;
+
+CREATE POLICY "Allow public push subscription insert"
+ON public.push_subscriptions
     FOR INSERT WITH CHECK (true);
 
-CREATE POLICY "Allow public update on push subscriptions" ON public.push_subscriptions
+CREATE POLICY "Allow public push subscription update"
+ON public.push_subscriptions
     FOR UPDATE USING (true) WITH CHECK (true);
 
 -- No public SELECT policy is added. Server/admin logic should send notifications
@@ -138,5 +144,6 @@ CREATE TRIGGER update_songs_updated_at BEFORE UPDATE ON songs
 CREATE TRIGGER update_lineups_updated_at BEFORE UPDATE ON lineups
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_push_subscriptions_updated_at ON public.push_subscriptions;
 CREATE TRIGGER update_push_subscriptions_updated_at BEFORE UPDATE ON public.push_subscriptions
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

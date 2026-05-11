@@ -82,10 +82,10 @@ self.addEventListener('push', (event) => {
   const title = payload.title || 'Line Up Manager';
   const url = payload.url || '/lineups';
   const options = {
-    body: payload.body || 'New lineup added',
+    body: payload.body || 'New notification',
     icon: '/icon-192.png',
     badge: '/icon-192.png',
-    tag: payload.lineupId ? `lineup-${payload.lineupId}` : 'lineup-notification',
+    tag: payload.tag || (payload.lineupId ? `lineup-${payload.lineupId}` : 'lineup-manager'),
     renotify: true,
     data: {
       url,
@@ -94,11 +94,7 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      const hasVisibleClient = clientList.some((client) => client.visibilityState === 'visible');
-      if (hasVisibleClient) return undefined;
-      return self.registration.showNotification(title, options);
-    })
+    self.registration.showNotification(title, options)
   );
 });
 
