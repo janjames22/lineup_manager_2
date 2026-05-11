@@ -13,7 +13,10 @@ export default function Navbar({
   notifications = [],
   unreadNotificationCount = 0,
   onMarkNotificationsRead,
+  onMarkNotificationRead,
   onClearNotification,
+  notificationSoundEnabled,
+  onNotificationSoundEnabledChange,
 }) {
   return (
     <header className="border-b border-slate-800/50 bg-slate-900/95 backdrop-blur-md sticky top-0 z-40 print:hidden" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
@@ -33,7 +36,10 @@ export default function Navbar({
             notifications={notifications}
             unreadCount={unreadNotificationCount}
             onMarkAllRead={onMarkNotificationsRead}
+            onMarkNotificationRead={onMarkNotificationRead}
             onClearNotification={onClearNotification}
+            soundEnabled={notificationSoundEnabled}
+            onSoundEnabledChange={onNotificationSoundEnabledChange}
           />
           <NavLink to="/" className={navLink}>
             <Home size={16} aria-hidden="true" /> Dashboard
@@ -57,7 +63,10 @@ export default function Navbar({
             notifications={notifications}
             unreadCount={unreadNotificationCount}
             onMarkAllRead={onMarkNotificationsRead}
+            onMarkNotificationRead={onMarkNotificationRead}
             onClearNotification={onClearNotification}
+            soundEnabled={notificationSoundEnabled}
+            onSoundEnabledChange={onNotificationSoundEnabledChange}
           />
           <button className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm font-bold text-slate-200" type="button" onClick={onShareApp}>
             <QrCode size={16} aria-hidden="true" /> Install QR

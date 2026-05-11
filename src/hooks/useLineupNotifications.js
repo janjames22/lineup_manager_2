@@ -4,28 +4,40 @@ import { supabase, isSupabaseConfigured } from '../utils/supabase';
 import {
   consumeLocalLineupCreation,
   createLineupNotification,
+  readNotificationSoundEnabled,
   readStoredLineupNotifications,
+  storeNotificationSoundEnabled,
   storeLineupNotifications,
 } from '../utils/lineupNotifications';
+import { playNotificationSound } from '../utils/notificationAudio';
 
 const LINEUP_NOTIFICATION_CHANNEL = 'lineup-notifications';
 
 export default function useLineupNotifications() {
   const [notifications, setNotifications] = useState(readStoredLineupNotifications);
+  const [soundEnabled, setSoundEnabledState] = useState(readNotificationSoundEnabled);
   const channelRef = useRef(null);
   const showToastErrorRef = useRef(false);
   const showToastRef = useRef(() => {});
+  const notifiedLineupIdsRef = useRef(new Set(readStoredLineupNotifications().map((notification) => notification?.lineupId).filter(Boolean)));
+  const soundEnabledRef = useRef(soundEnabled);
   const { showToast } = useToast();
 
   useEffect(() => {
     showToastRef.current = showToast;
   }, [showToast]);
 
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+    storeNotificationSoundEnabled(soundEnabled);
+  }, [soundEnabled]);
+
   const updateNotifications = useCallback((updater) => {
     setNotifications((current) => {
       const next = typeof updater === 'function' ? updater(current) : updater;
       console.log('[LineupNotifications] notification list after update:', next);
       storeLineupNotifications(next);
+      notifiedLineupIdsRef.current = new Set(next.map((notification) => notification?.lineupId).filter(Boolean));
       return next;
     });
   }, []);
@@ -34,9 +46,19 @@ export default function useLineupNotifications() {
     updateNotifications((current) => current.map((notification) => ({ ...notification, read: true })));
   }, [updateNotifications]);
 
+  const markNotificationRead = useCallback((notificationId) => {
+    updateNotifications((current) => current.map((notification) => (
+      notification.id === notificationId ? { ...notification, read: true } : notification
+    )));
+  }, [updateNotifications]);
+
   const clearNotification = useCallback((notificationId) => {
     updateNotifications((current) => current.filter((notification) => notification.id !== notificationId));
   }, [updateNotifications]);
+
+  const setSoundEnabled = useCallback((enabled) => {
+    setSoundEnabledState(Boolean(enabled));
+  }, []);
 
   const handleNewLineup = useCallback((lineupRow, eventType = 'UNKNOWN') => {
     console.log('[LineupNotifications] handleNewLineup called:', { eventType, lineupRow });
@@ -52,19 +74,31 @@ export default function useLineupNotifications() {
     }
 
     const notification = createLineupNotification(lineupRow);
-    console.log('[LineupNotifications] notification object created:', notification);
+    if (!notification?.lineupId) {
+      console.warn('[LineupNotifications] Skipping notification because lineupId is missing.', lineupRow);
+      return;
+    }
+
+    if (notifiedLineupIdsRef.current.has(notification.lineupId)) {
+      console.log('[LineupNotifications] notification list update skipped because lineupId already exists:', notification.lineupId);
+      return;
+    }
+
+    console.log('[LineupNotifications] created notification:', notification);
+    notifiedLineupIdsRef.current.add(notification.lineupId);
 
     updateNotifications((current) => {
-      if (current.some((item) => item.lineupId === notification.lineupId)) {
-        console.log('[LineupNotifications] notification list update skipped because lineupId already exists:', notification.lineupId);
-        return current;
-      }
-
       return [notification, ...current];
     });
 
     console.log('[LineupNotifications] triggering toast for notification:', notification.message);
     showToastRef.current(notification.message, 'info', 6000);
+
+    if (soundEnabledRef.current) {
+      playNotificationSound().catch((error) => {
+        console.warn('[LineupNotifications] failed to play notification sound:', error);
+      });
+    }
   }, [updateNotifications]);
 
   useEffect(() => {
@@ -130,6 +164,9 @@ export default function useLineupNotifications() {
     notifications,
     unreadCount: notifications.filter((notification) => !notification.read).length,
     markAllRead,
+    markNotificationRead,
     clearNotification,
+    soundEnabled,
+    setSoundEnabled,
   };
 }

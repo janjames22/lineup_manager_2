@@ -1,5 +1,6 @@
 const LOCAL_CREATED_LINEUPS_KEY = 'lineupManagerLocalCreatedLineups';
 export const LINEUP_NOTIFICATIONS_KEY = 'lineupManagerNotifications';
+export const LINEUP_NOTIFICATION_SOUND_ENABLED_KEY = 'lineupNotificationSoundEnabled';
 const LOCAL_CREATED_TTL_MS = 5 * 60 * 1000;
 const MAX_NOTIFICATION_COUNT = 20;
 
@@ -71,16 +72,42 @@ export function storeLineupNotifications(notifications) {
   writeJson(LINEUP_NOTIFICATIONS_KEY, notifications.slice(0, MAX_NOTIFICATION_COUNT));
 }
 
+export function readNotificationSoundEnabled() {
+  if (typeof window === 'undefined') return true;
+
+  const storedValue = window.localStorage.getItem(LINEUP_NOTIFICATION_SOUND_ENABLED_KEY);
+  return storedValue == null ? true : storedValue === 'true';
+}
+
+export function storeNotificationSoundEnabled(enabled) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(LINEUP_NOTIFICATION_SOUND_ENABLED_KEY, enabled ? 'true' : 'false');
+}
+
+function getLineupDisplayName(lineup = {}) {
+  return lineup.title || lineup.name || lineup.lineup_title || lineup.lineupTitle || '';
+}
+
 export function getLineupNotificationMessage(lineup = {}) {
-  const title = lineup.title || lineup.name || lineup.lineup_title || lineup.lineupTitle;
-  return title ? `New lineup added: ${title}` : 'New lineup added';
+  const title = getLineupDisplayName(lineup);
+  const date = lineup.date || '';
+  const serviceTime = lineup.service_time || lineup.serviceTime || '';
+  const schedule = [date, serviceTime].filter(Boolean).join(' · ');
+
+  if (title && schedule) return `${title} · ${schedule}`;
+  if (title) return title;
+  if (schedule) return schedule;
+  return 'Tap to open lineup';
 }
 
 export function createLineupNotification(lineup = {}) {
-  const lineupId = lineup.id || crypto.randomUUID?.() || `lineup-${Date.now()}`;
+  const lineupId = lineup.id;
+  if (!lineupId) return null;
 
   return {
     id: `lineup-${lineupId}-${Date.now()}`,
+    type: 'lineup_created',
+    title: 'New lineup added',
     lineupId,
     message: getLineupNotificationMessage(lineup),
     date: lineup.date || '',

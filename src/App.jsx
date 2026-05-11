@@ -19,6 +19,7 @@ import ToastContainer from './components/ToastContainer';
 import { useToast } from './hooks/useToast';
 import useLineupNotifications from './hooks/useLineupNotifications';
 import ShareAppQrModal from './components/ShareAppQrModal';
+import { unlockNotificationAudio } from './utils/notificationAudio';
 
 const UPDATE_CHECK_TIMEOUT_MS = 5000;
 const FOREGROUND_UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
@@ -48,7 +49,10 @@ export default function App() {
     notifications: lineupNotifications,
     unreadCount: unreadLineupNotifications,
     markAllRead: markLineupNotificationsRead,
+    markNotificationRead: markSingleLineupNotificationRead,
     clearNotification: clearLineupNotification,
+    soundEnabled: lineupNotificationSoundEnabled,
+    setSoundEnabled: setLineupNotificationSoundEnabled,
   } = useLineupNotifications();
 
   const markWaitingWorkerAvailable = () => {
@@ -119,6 +123,25 @@ export default function App() {
       sessionStorage.removeItem(UPDATE_RELOAD_MARKER_KEY);
     }
     return undefined;
+  }, []);
+
+  useEffect(() => {
+    const unlockAudio = () => {
+      unlockNotificationAudio();
+      window.removeEventListener('click', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+    };
+
+    window.addEventListener('click', unlockAudio);
+    window.addEventListener('touchstart', unlockAudio);
+    window.addEventListener('keydown', unlockAudio);
+
+    return () => {
+      window.removeEventListener('click', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+    };
   }, []);
 
   const reloadAppForUpdate = (reason) => {
@@ -287,7 +310,10 @@ export default function App() {
           notifications={lineupNotifications}
           unreadNotificationCount={unreadLineupNotifications}
           onMarkNotificationsRead={markLineupNotificationsRead}
+          onMarkNotificationRead={markSingleLineupNotificationRead}
           onClearNotification={clearLineupNotification}
+          notificationSoundEnabled={lineupNotificationSoundEnabled}
+          onNotificationSoundEnabledChange={setLineupNotificationSoundEnabled}
         />
       )}
       {showAppChrome && <InstallBanner />}
