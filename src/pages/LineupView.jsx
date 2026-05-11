@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import TeamAssignments from '../components/TeamAssignments';
 import LoadingScreen from '../components/LoadingScreen';
+import ChordChartViewer from '../components/ChordChartViewer';
 import { deleteLineup, getLineupById, getSongs, saveLineup } from '../utils/storage';
 import { useToast } from '../hooks/useToast';
 import { getSemitoneDelta, transposeChords, getTransposedKey } from '../utils/transposeChords';
@@ -150,7 +151,12 @@ export default function LineupView() {
                 </div>
                 
                 <div className="mt-2 ml-10">
-                  <pre className="chord-sheet !p-5 !text-[14px] !bg-slate-950/80 !border-slate-800/50">{song ? transposeChords(song.chordChart, delta) || 'No chord chart added.' : 'Song not found in library.'}</pre>
+                  <ChordChartViewer
+                    preClassName="!p-5 !bg-slate-950/80 !border-slate-800/50"
+                    chordChart={song ? transposeChords(song.chordChart, delta) : ''}
+                    emptyText={song ? 'No chord chart added.' : 'Song not found in library.'}
+                    showControls={index === 0}
+                  />
                 </div>
               </article>
             );

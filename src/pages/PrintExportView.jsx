@@ -1,6 +1,7 @@
 import { ArrowLeft, Printer } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import ChordChartViewer from '../components/ChordChartViewer';
 import TeamAssignments from '../components/TeamAssignments';
 import { getLineupById, getSongs } from '../utils/storage';
 import { getSemitoneDelta, transposeChords } from '../utils/transposeChords';
@@ -83,7 +84,13 @@ export default function PrintExportView() {
                   </div>
                   <span className="print-accent font-bold text-blue-700">Key: {lineupSong.selectedKey}</span>
                 </div>
-                <pre className="print-chord-chart mt-3 whitespace-pre-wrap rounded bg-slate-50 p-4 font-mono text-sm text-slate-900">{song ? transposeChords(song.chordChart, delta) : 'Song not found in library.'}</pre>
+                <ChordChartViewer
+                  className="mt-3"
+                  preClassName="print-chord-chart !min-h-0 !rounded !border-slate-200 !bg-slate-50 !p-4 !text-slate-900"
+                  chordChart={song ? transposeChords(song.chordChart, delta) : ''}
+                  emptyText={song ? 'No chord chart added.' : 'Song not found in library.'}
+                  showControls={index === 0}
+                />
                 {song?.lyricsMonitor?.length > 0 && (
                   <div className="print-card mt-3 rounded border border-slate-200 p-3">
                     <p className="print-accent mb-2 text-sm font-semibold text-slate-700">Lyrics Monitor Cues</p>

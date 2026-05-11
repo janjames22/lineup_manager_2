@@ -100,7 +100,8 @@
   }
 
   .chord-sheet {
-    @apply min-h-64 overflow-x-auto whitespace-pre-wrap rounded-xl bg-slate-950 p-6 font-mono text-[15px] leading-relaxed text-blue-100 shadow-inner border border-slate-800/50;
+    @apply min-h-64 max-w-full overflow-x-auto whitespace-pre rounded-xl bg-slate-950 p-6 font-mono text-[16px] leading-relaxed text-blue-100 shadow-inner border border-slate-800/50;
+    letter-spacing: 0;
   }
 }
 
@@ -208,7 +209,7 @@
   .chord-sheet,
   .print-sheet pre {
     overflow: visible !important;
-    white-space: pre-wrap !important;
+    white-space: pre !important;
     color: #111827 !important;
   }
 

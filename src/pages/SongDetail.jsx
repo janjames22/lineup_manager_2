@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import LoadingScreen from '../components/LoadingScreen';
+import ChordChartViewer from '../components/ChordChartViewer';
 import { formatBpm } from '../utils/constants';
 import { deleteSong, getSongById } from '../utils/storage';
 import { useToast } from '../hooks/useToast';
@@ -100,7 +101,12 @@ export default function SongDetail() {
       <section className="grid gap-6 lg:grid-cols-[1fr_0.65fr]">
         <div className="panel">
           <h2 className="section-title">Chord Chart</h2>
-          <pre className="chord-sheet mt-5 !bg-slate-950/80">{transposedChart || 'No chord chart added yet.'}</pre>
+          <ChordChartViewer
+            className="mt-5"
+            preClassName="!bg-slate-950/80"
+            chordChart={transposedChart}
+            emptyText="No chord chart added yet."
+          />
         </div>
         <aside className="space-y-6">
           <div className="panel">
