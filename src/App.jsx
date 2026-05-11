@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import InstallBanner from './components/InstallBanner';
@@ -17,22 +17,14 @@ import UpdatePrompt from './components/UpdatePrompt';
 import BottomNav from './components/BottomNav';
 import ToastContainer from './components/ToastContainer';
 import { useToast } from './hooks/useToast';
+import useLineupNotifications from './hooks/useLineupNotifications';
 import ShareAppQrModal from './components/ShareAppQrModal';
-import { supabase, isSupabaseConfigured } from './utils/supabase';
-import {
-  consumeLocalLineupCreation,
-  createLineupNotification,
-  readStoredLineupNotifications,
-  storeLineupNotifications,
-} from './utils/lineupNotifications';
 
 const UPDATE_CHECK_TIMEOUT_MS = 5000;
 const FOREGROUND_UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const UPDATE_ACTIVATION_TIMEOUT_MS = 4000;
 const IS_DEV = import.meta.env.DEV;
 const UPDATE_RELOAD_MARKER_KEY = 'pwa-update-reload-reason';
-const LINEUP_NOTIFICATION_CHANNEL = 'lineup-notifications';
-
 function devLog(...args) {
   if (IS_DEV) console.log(...args);
 }
@@ -41,16 +33,19 @@ export default function App() {
   const location = useLocation();
   const registrationRef = useRef(null);
   const lastUpdateCheckAtRef = useRef(0);
-  const lineupNotificationChannelRef = useRef(null);
-  const lineupNotificationErrorToastShownRef = useRef(false);
   const waitingWorkerLoggedRef = useRef(false);
   const reloadTriggeredRef = useRef(false);
   const [swRegistration, setSwRegistration] = useState(null);
   const [manualNeedUpdate, setManualNeedUpdate] = useState(false);
   const [checkingForUpdate, setCheckingForUpdate] = useState(false);
   const [shareQrOpen, setShareQrOpen] = useState(false);
-  const [lineupNotifications, setLineupNotifications] = useState(readStoredLineupNotifications);
   const { showToast } = useToast();
+  const {
+    notifications: lineupNotifications,
+    unreadCount: unreadLineupNotifications,
+    markAllRead: markLineupNotificationsRead,
+    clearNotification: clearLineupNotification,
+  } = useLineupNotifications();
 
   const markWaitingWorkerAvailable = () => {
     setManualNeedUpdate(true);
@@ -103,29 +98,6 @@ export default function App() {
   const isLyricsMonitorRoute = /^\/lyrics-monitor\/[^/]+$/.test(location.pathname) || /^\/lineups\/[^/]+\/monitor$/.test(location.pathname);
   const isPrintRoute = /^\/lineups\/[^/]+\/print$/.test(location.pathname);
   const showAppChrome = !isLyricsMonitorRoute && !isPrintRoute;
-  const unreadLineupNotifications = lineupNotifications.filter((notification) => !notification.read).length;
-
-  const updateLineupNotifications = useCallback((updater) => {
-    setLineupNotifications((current) => {
-      const next = typeof updater === 'function' ? updater(current) : updater;
-      console.log('Lineup notification state update:', {
-        previousCount: current.length,
-        nextCount: next.length,
-        unreadCount: next.filter((notification) => !notification.read).length,
-        notifications: next,
-      });
-      storeLineupNotifications(next);
-      return next;
-    });
-  }, []);
-
-  const markLineupNotificationsRead = useCallback(() => {
-    updateLineupNotifications((current) => current.map((notification) => ({ ...notification, read: true })));
-  }, [updateLineupNotifications]);
-
-  const clearLineupNotification = useCallback((notificationId) => {
-    updateLineupNotifications((current) => current.filter((notification) => notification.id !== notificationId));
-  }, [updateLineupNotifications]);
 
   useEffect(() => {
     if (!needUpdate) return;
@@ -145,91 +117,6 @@ export default function App() {
     }
     return undefined;
   }, []);
-
-  useEffect(() => {
-    if (!isSupabaseConfigured()) {
-      console.warn('Lineup notifications disabled: existing Supabase client is not configured.');
-      return undefined;
-    }
-
-    if (lineupNotificationChannelRef.current) {
-      console.warn('Lineup notification channel already exists; removing stale channel before subscribing again.');
-      supabase.removeChannel(lineupNotificationChannelRef.current);
-      lineupNotificationChannelRef.current = null;
-    }
-
-    console.log('Creating Supabase Realtime lineup notification channel:', {
-      channel: LINEUP_NOTIFICATION_CHANNEL,
-      schema: 'public',
-      table: 'lineups',
-      event: 'INSERT',
-    });
-
-    let isCleaningUp = false;
-    const channel = supabase
-      .channel(LINEUP_NOTIFICATION_CHANNEL)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'lineups',
-        },
-        (payload) => {
-          console.log('Lineup Realtime payload.new:', payload.new);
-
-          if (consumeLocalLineupCreation(payload.new)) {
-            console.log('Lineup Realtime payload ignored because it was created by this browser tab:', payload.new);
-            return;
-          }
-
-          const notification = createLineupNotification(payload.new);
-          console.log('Lineup notification object created:', notification);
-          updateLineupNotifications((current) => {
-            if (current.some((item) => item.lineupId === notification.lineupId)) {
-              console.log('Lineup notification state update skipped; duplicate lineup notification:', notification);
-              return current;
-            }
-
-            const nextNotifications = [notification, ...current];
-            console.log('Lineup notification queued from Realtime payload:', notification);
-            return nextNotifications;
-          });
-          console.log('Showing lineup notification toast:', notification.message);
-          showToast(notification.message, 'info', 6000);
-        }
-      )
-      .subscribe((status) => {
-        console.log('Lineup notification channel status:', status);
-
-        if (isCleaningUp && status === 'CLOSED') {
-          console.log('Lineup notification channel closed during cleanup.');
-          return;
-        }
-
-        if (status === 'SUBSCRIBED') {
-          console.log('Lineup notification channel subscribed to public.lineups INSERT events.');
-        }
-
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          console.error('Lineup notification channel is not receiving events. Confirm Supabase Realtime is enabled for public.lineups.', { status });
-          if (!lineupNotificationErrorToastShownRef.current) {
-            lineupNotificationErrorToastShownRef.current = true;
-            showToast('Lineup notifications are not connected. Check Supabase Realtime for lineups.', 'error', 7000);
-          }
-        }
-      });
-    lineupNotificationChannelRef.current = channel;
-
-    return () => {
-      isCleaningUp = true;
-      console.log('Cleaning up Supabase Realtime lineup notification channel.');
-      supabase.removeChannel(channel);
-      if (lineupNotificationChannelRef.current === channel) {
-        lineupNotificationChannelRef.current = null;
-      }
-    };
-  }, [showToast, updateLineupNotifications]);
 
   const reloadAppForUpdate = (reason) => {
     if (reloadTriggeredRef.current) return;

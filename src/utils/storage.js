@@ -647,6 +647,7 @@ export async function saveLineup(lineup) {
       let result;
       if (existing && hasSupabaseId) {
         // Update existing
+        console.log('[LineupNotifications] saveLineup is performing Supabase UPDATE for lineup id:', nextLineup.id);
         result = await withTimeout(
           supabase
             .from('lineups')
@@ -661,6 +662,7 @@ export async function saveLineup(lineup) {
         const insertPayload = { ...payload };
         delete insertPayload.id;
         markLineupCreatedLocally(insertPayload);
+        console.log('[LineupNotifications] saveLineup is performing Supabase INSERT for lineup payload:', insertPayload);
 
         result = await withTimeout(
           supabase
@@ -689,6 +691,7 @@ export async function saveLineup(lineup) {
   }
   
   // Fallback to localStorage
+  console.log('[LineupNotifications] saveLineup is using localStorage fallback because Supabase is not configured.');
   return saveLocalLineup(nextLineup);
 }
 
