@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS public.push_subscriptions (
     auth TEXT NOT NULL,
     user_agent TEXT,
     device_label TEXT,
+    device_id TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     last_seen_at TIMESTAMPTZ,
@@ -58,6 +59,7 @@ CREATE TABLE IF NOT EXISTS public.push_subscriptions (
 
 ALTER TABLE public.push_subscriptions
     ADD COLUMN IF NOT EXISTS device_label TEXT,
+    ADD COLUMN IF NOT EXISTS device_id TEXT,
     ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
 
@@ -210,6 +212,7 @@ CREATE INDEX idx_songs_category ON songs(category);
 CREATE INDEX idx_lineups_date ON lineups(date);
 CREATE INDEX IF NOT EXISTS idx_push_subscriptions_endpoint ON public.push_subscriptions(endpoint);
 CREATE INDEX IF NOT EXISTS idx_push_subscriptions_active ON public.push_subscriptions(is_active);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_device_id ON public.push_subscriptions(device_id);
 CREATE INDEX IF NOT EXISTS idx_lineup_notifications_lineup_id ON public.lineup_notifications(lineup_id);
 CREATE INDEX IF NOT EXISTS idx_lineup_notifications_subscription_endpoint ON public.lineup_notifications(subscription_endpoint);
 CREATE INDEX IF NOT EXISTS idx_lineup_notifications_user_id ON public.lineup_notifications(user_id);

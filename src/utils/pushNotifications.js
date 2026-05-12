@@ -1,7 +1,13 @@
+/* global __APP_BUILD_VERSION__ */
+import { getMetadata, NOTIFICATION_METADATA_KEYS } from './indexedDbNotifications';
+
 const PUSH_SUBSCRIPTION_ENDPOINT_KEY = 'lineupManagerPushSubscriptionEndpoint';
+const PUSH_DEVICE_ID_KEY = 'lineupManagerPushDeviceId';
 const STABLE_PRODUCTION_HOST = 'ccfbc-lineup-manager-code.vercel.app';
 const API_BASE = '/api/push';
 const IS_DEV = import.meta.env.DEV;
+const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.0';
+const BUILD_VERSION = typeof __APP_BUILD_VERSION__ === 'string' ? __APP_BUILD_VERSION__ : 'dev';
 
 let cachedVapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
 
@@ -26,6 +32,12 @@ function isIosDevice() {
   return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 }
 
+function isSafariBrowser() {
+  if (typeof navigator === 'undefined') return false;
+  const userAgent = navigator.userAgent;
+  return /Safari/i.test(userAgent) && !/(CriOS|FxiOS|EdgiOS|OPiOS|Chrome|Edg|Firefox)/i.test(userAgent);
+}
+
 function isAndroidDevice() {
   if (typeof navigator === 'undefined') return false;
   return /Android/i.test(navigator.userAgent);
@@ -47,6 +59,28 @@ function getDeviceLabel() {
         : 'Browser';
   const platform = isIosDevice() ? 'iPhone/iPad' : isAndroidDevice() ? 'Android' : navigator.platform || 'Device';
   return `${platform} ${browser}`;
+}
+
+function createDeviceId() {
+  const cryptoObject = typeof crypto !== 'undefined' ? crypto : null;
+  if (cryptoObject?.randomUUID) return cryptoObject.randomUUID();
+  const randomValues = cryptoObject?.getRandomValues
+    ? Array.from(cryptoObject.getRandomValues(new Uint8Array(16)))
+    : Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
+
+  return randomValues
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+export function getPushDeviceId() {
+  if (typeof window === 'undefined') return '';
+  const existing = window.localStorage.getItem(PUSH_DEVICE_ID_KEY);
+  if (existing) return existing;
+
+  const deviceId = createDeviceId();
+  window.localStorage.setItem(PUSH_DEVICE_ID_KEY, deviceId);
+  return deviceId;
 }
 
 async function readJsonResponse(response, fallbackMessage) {
@@ -100,6 +134,7 @@ async function saveSubscriptionToServer(subscription) {
     subscription: json,
     userAgent: navigator.userAgent || '',
     deviceLabel: getDeviceLabel(),
+    deviceId: getPushDeviceId(),
   };
 
   if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
@@ -121,6 +156,20 @@ async function saveSubscriptionToServer(subscription) {
   return result;
 }
 
+async function checkSubscriptionSavedToServer(endpoint) {
+  if (!endpoint) return null;
+
+  return fetchJson(
+    `${API_BASE}/check-subscription`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint }),
+    },
+    'Unable to check push subscription storage.'
+  );
+}
+
 export function getPushSupportStatus() {
   const hasWindow = typeof window !== 'undefined';
   const hasNavigator = typeof navigator !== 'undefined';
@@ -130,6 +179,9 @@ export function getPushSupportStatus() {
   const isStandalone = isStandalonePwa();
   const isIos = isIosDevice();
   const isAndroid = isAndroidDevice();
+  const isSafari = isSafariBrowser();
+  const navigatorStandalone = hasWindow ? window.navigator.standalone === true : false;
+  const displayModeStandalone = hasWindow ? Boolean(window.matchMedia?.('(display-mode: standalone)').matches) : false;
   const permission = hasNotification ? Notification.permission : 'unsupported';
   const userAgent = hasNavigator ? navigator.userAgent : '';
   const hostname = hasWindow ? window.location.hostname : '';
@@ -140,9 +192,9 @@ export function getPushSupportStatus() {
   let reason = 'Ready to enable phone notifications.';
   if (!hasNotification) reason = 'Browser does not support notifications.';
   else if (!hasServiceWorker) reason = 'Browser does not support service workers.';
+  else if (isIos && !isStandalone) reason = 'iPhone/iPad requires installing this PWA to the Home Screen first.';
   else if (!hasPushManager) reason = 'Browser does not support the Push API.';
   else if (permission === 'denied') reason = 'Permission denied. Allow notifications in browser or OS settings.';
-  else if (isIos && !isStandalone) reason = 'iPhone/iPad requires installing this PWA to the Home Screen first.';
   else if (permission === 'granted') reason = 'Notification permission granted. Checking push subscription.';
   else if (isAndroid) reason = 'Android Chrome/Edge can receive Web Push after permission is granted.';
 
@@ -157,6 +209,9 @@ export function getPushSupportStatus() {
     canEnable,
     isIos,
     isAndroid,
+    isSafari,
+    navigatorStandalone,
+    displayModeStandalone,
     isVercelPreview,
     hostname,
     reason,
@@ -217,6 +272,13 @@ export async function checkLineupPushSubscriptionHealth({ refreshServer = false,
     await saveSubscriptionToServer(subscription);
   }
 
+  let serverSubscription = null;
+  try {
+    serverSubscription = await checkSubscriptionSavedToServer(subscription.endpoint);
+  } catch (error) {
+    debugPush('subscription server check failed', error);
+  }
+
   return {
     ok: true,
     code: 'ok',
@@ -224,10 +286,11 @@ export async function checkLineupPushSubscriptionHealth({ refreshServer = false,
     support,
     registration,
     subscription,
+    serverSubscription,
   };
 }
 
-export async function subscribeToLineupPushNotifications() {
+export async function subscribeToLineupPushNotifications({ forceNew = false } = {}) {
   const support = getPushSupportStatus();
   if (!support.supported) {
     throw new Error(support.reason);
@@ -253,12 +316,27 @@ export async function subscribeToLineupPushNotifications() {
   }
 
   const existing = await registration.pushManager.getSubscription();
-  const subscription = existing || await registration.pushManager.subscribe({
+  if (existing && forceNew) {
+    await fetchJson(
+      `${API_BASE}/unsubscribe`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: existing.endpoint }),
+      },
+      'Unable to remove old push subscription.'
+    );
+    await existing.unsubscribe();
+    clearStoredPushSubscriptionEndpoint();
+  }
+
+  const current = forceNew ? null : existing;
+  const subscription = current || await registration.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(publicKey),
   });
 
-  debugPush(existing ? 'existing push subscription found' : 'push subscription created', {
+  debugPush(current ? 'existing push subscription found' : 'push subscription created', {
     endpoint: subscription.endpoint,
   });
 
@@ -268,6 +346,10 @@ export async function subscribeToLineupPushNotifications() {
     message: 'Phone notifications enabled for this device.',
     subscription,
   };
+}
+
+export async function resubscribeToLineupPushNotifications() {
+  return subscribeToLineupPushNotifications({ forceNew: true });
 }
 
 export async function unsubscribeFromLineupPushNotifications() {
@@ -325,6 +407,134 @@ export async function sendTestPushNotification() {
 
   debugPush('backend push send result', result);
   return result;
+}
+
+export async function sendLocalDiagnosticNotification() {
+  const support = getPushSupportStatus();
+  if (!support.hasNotification) {
+    throw new Error('Browser does not support notifications.');
+  }
+
+  const permission = support.permission === 'granted'
+    ? 'granted'
+    : await Notification.requestPermission();
+
+  if (permission !== 'granted') {
+    throw new Error(permission === 'denied' ? 'Permission denied.' : 'Permission was not granted.');
+  }
+
+  const registration = await getServiceWorkerRegistration({ ensure: true });
+  const options = {
+    body: 'This local test only proves notifications can display while the app is open.',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: 'lineup-local-diagnostic',
+    renotify: true,
+    silent: false,
+    data: {
+      url: '/lineups',
+      type: 'diagnostic',
+    },
+  };
+
+  if (registration?.showNotification) {
+    await registration.showNotification('Line Up local test', options);
+  } else {
+    new Notification('Line Up local test', options);
+  }
+
+  return { ok: true };
+}
+
+export async function getNotificationDiagnostics({ refreshServer = false, ensureRegistration = false } = {}) {
+  const support = getPushSupportStatus();
+  let registration = null;
+  let registrationError = '';
+  let subscription = null;
+  let serverSubscription = null;
+  let health = null;
+
+  try {
+    registration = await getServiceWorkerRegistration({ ensure: ensureRegistration });
+  } catch (error) {
+    registrationError = error?.message || 'Unable to inspect service worker.';
+  }
+
+  try {
+    if (registration?.pushManager) {
+      subscription = await registration.pushManager.getSubscription();
+    }
+  } catch (error) {
+    debugPush('subscription diagnostics check failed', error);
+  }
+
+  if (subscription) {
+    storePushSubscriptionEndpoint(subscription.endpoint);
+
+    if (refreshServer) {
+      await saveSubscriptionToServer(subscription);
+    }
+
+    try {
+      serverSubscription = await checkSubscriptionSavedToServer(subscription.endpoint);
+    } catch (error) {
+      serverSubscription = {
+        saved: false,
+        error: error?.message || 'Unable to check Supabase subscription.',
+      };
+    }
+  }
+
+  try {
+    health = await checkLineupPushSubscriptionHealth({ refreshServer: false, ensureRegistration: false });
+  } catch (error) {
+    health = { ok: false, code: 'health_check_failed', message: error?.message || 'Unable to check setup.' };
+  }
+
+  const readMetadata = async (key) => {
+    try {
+      return await getMetadata(key);
+    } catch {
+      return null;
+    }
+  };
+
+  return {
+    support,
+    health,
+    registration: {
+      supported: support.hasServiceWorker,
+      registered: Boolean(registration),
+      active: Boolean(registration?.active),
+      waiting: Boolean(registration?.waiting),
+      installing: Boolean(registration?.installing),
+      scope: registration?.scope || '',
+      activeScriptUrl: registration?.active?.scriptURL || '',
+      error: registrationError,
+    },
+    subscription: {
+      exists: Boolean(subscription),
+      endpoint: subscription?.endpoint || '',
+      savedInSupabase: Boolean(serverSubscription?.saved),
+      activeInSupabase: Boolean(serverSubscription?.saved) && serverSubscription?.active !== false,
+      serverLastSeenAt: serverSubscription?.lastSeenAt || null,
+      serverUpdatedAt: serverSubscription?.updatedAt || null,
+      serverError: serverSubscription?.error || '',
+    },
+    metadata: {
+      lastSubscriptionSyncAt: serverSubscription?.lastSeenAt || serverSubscription?.updatedAt || null,
+      lastPushReceivedAt: await readMetadata(NOTIFICATION_METADATA_KEYS.lastPushReceivedAt),
+      lastBadgeSyncAt: await readMetadata(NOTIFICATION_METADATA_KEYS.lastBadgeSyncAt),
+      latestLineupId: await readMetadata(NOTIFICATION_METADATA_KEYS.latestLineupId),
+      latestNotificationId: await readMetadata(NOTIFICATION_METADATA_KEYS.latestNotificationId),
+    },
+    app: {
+      version: APP_VERSION,
+      buildVersion: BUILD_VERSION,
+      serviceWorkerVersion: BUILD_VERSION,
+      deviceId: getPushDeviceId(),
+    },
+  };
 }
 
 export async function sendLineupPushNotification(lineup) {

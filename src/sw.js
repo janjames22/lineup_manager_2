@@ -301,7 +301,7 @@ function createNotificationOptions(payload = {}) {
   const notificationId = payload.notificationId || payload.id || (lineupId ? `lineup-${lineupId}` : `push-${timestamp}`);
 
   return {
-    body: payload.body || 'New notification',
+    body: payload.body || 'A new worship lineup has been posted.',
     icon: payload.icon || '/icon-192.png',
     badge: payload.badge || '/icon-192.png',
     tag: payload.tag || (lineupId ? `lineup-${lineupId}` : 'lineup-manager'),
@@ -323,6 +323,7 @@ function createNotificationOptions(payload = {}) {
       notificationId,
       url,
       lineupId,
+      type: payload.type || payload.data?.type || (lineupId ? 'lineup_created' : 'push'),
       timestamp,
     },
   };
@@ -441,7 +442,7 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('push', (event) => {
   const payload = readPushPayload(event);
-  const title = payload.title || 'Line Up Manager';
+  const title = payload.title || 'New lineup added';
   const options = createNotificationOptions(payload);
 
   debugPush('push event received', { title, options });

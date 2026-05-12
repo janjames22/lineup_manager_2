@@ -2,7 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 import webPush from 'web-push';
 
-const MISSING_COLUMN_CODES = new Set(['42P01', '42703', 'PGRST204', 'PGRST205']);
+export const MISSING_COLUMN_CODES = new Set(['42P01', '42703', 'PGRST204', 'PGRST205']);
 const DUPLICATE_KEY_CODE = '23505';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -78,6 +78,7 @@ export function normalizeSubscription(body = {}, request) {
     auth,
     user_agent: body.user_agent || body.userAgent || getHeader(request, 'user-agent') || '',
     device_label: body.device_label || body.deviceLabel || '',
+    device_id: body.device_id || body.deviceId || '',
   };
 }
 
@@ -89,6 +90,7 @@ export async function upsertPushSubscription(supabase, subscription) {
     auth: subscription.auth,
     user_agent: subscription.user_agent || '',
     device_label: subscription.device_label || '',
+    device_id: subscription.device_id || '',
     updated_at: now,
     last_seen_at: now,
     is_active: true,
