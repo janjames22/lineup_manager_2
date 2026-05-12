@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import webPush from 'web-push';
 
 const MISSING_COLUMN_CODES = new Set(['42P01', '42703', 'PGRST204', 'PGRST205']);
+const DUPLICATE_KEY_CODE = '23505';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -239,27 +240,46 @@ function normalizeLineupNotificationId(lineupId) {
 export async function createLineupNotificationRecords(supabase, payload, subscriptions, results) {
   const notification = parsePushPayload(payload);
   if (!notification.lineupId) return 0;
+  const lineupId = normalizeLineupNotificationId(notification.lineupId);
+  if (!lineupId) return 0;
 
-  const records = subscriptions
+  const deliveredCount = subscriptions
     .map((subscription, index) => ({ subscription, result: results[index] }))
     .filter(({ result }) => result?.status === 'fulfilled')
-    .map(({ subscription }) => ({
-      type: notification.type || 'lineup_created',
-      lineup_id: normalizeLineupNotificationId(notification.lineupId),
-      title: notification.title || 'New lineup added',
-      body: notification.body || '',
-      url: notification.url || `/lineups/${notification.lineupId}`,
-      is_read: false,
-      subscription_endpoint: subscription.endpoint,
-    }));
+    .length;
 
-  if (!records.length) return 0;
+  if (subscriptions.length && !deliveredCount) return 0;
+
+  const existing = await supabase
+    .from('lineup_notifications')
+    .select('id')
+    .eq('type', 'lineup_created')
+    .eq('lineup_id', lineupId)
+    .maybeSingle();
+
+  if (!existing.error && existing.data?.id) return 0;
+
+  if (existing.error && !MISSING_COLUMN_CODES.has(existing.error.code)) {
+    console.error('[PushNotifications] failed to check existing lineup notification record:', existing.error);
+    return 0;
+  }
+
+  const record = {
+    type: notification.type || 'lineup_created',
+    lineup_id: lineupId,
+    title: notification.title || 'New lineup added',
+    body: notification.body || 'A new worship lineup has been posted.',
+    url: notification.url || `/lineups/${lineupId}`,
+    is_read: false,
+  };
 
   const { error } = await supabase
     .from('lineup_notifications')
-    .insert(records);
+    .insert(record);
 
   if (error) {
+    if (error.code === DUPLICATE_KEY_CODE) return 0;
+
     if (MISSING_COLUMN_CODES.has(error.code)) {
       console.error('[PushNotifications] lineup_notifications table is not ready. Apply supabase-schema.sql to enable server notification history.', error);
       return 0;
@@ -269,7 +289,7 @@ export async function createLineupNotificationRecords(supabase, payload, subscri
     return 0;
   }
 
-  return records.length;
+  return 1;
 }
 
 export async function loadLineup(supabase, lineupId) {

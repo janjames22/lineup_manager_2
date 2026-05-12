@@ -215,6 +215,9 @@ CREATE INDEX IF NOT EXISTS idx_lineup_notifications_subscription_endpoint ON pub
 CREATE INDEX IF NOT EXISTS idx_lineup_notifications_user_id ON public.lineup_notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_lineup_notifications_is_read ON public.lineup_notifications(is_read);
 CREATE INDEX IF NOT EXISTS idx_lineup_notifications_created_at ON public.lineup_notifications(created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_lineup_notifications_unique_lineup_created
+ON public.lineup_notifications (type, lineup_id)
+WHERE type = 'lineup_created' AND lineup_id IS NOT NULL;
 
 -- ============================================
 -- FUNCTION TO AUTO-UPDATE updated_at TIMESTAMP
@@ -242,3 +245,46 @@ CREATE TRIGGER update_push_subscriptions_updated_at BEFORE UPDATE ON public.push
 DROP TRIGGER IF EXISTS update_lineup_notifications_updated_at ON public.lineup_notifications;
 CREATE TRIGGER update_lineup_notifications_updated_at BEFORE UPDATE ON public.lineup_notifications
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================
+-- LINEUP INSERT NOTIFICATION TRIGGER
+-- ============================================
+-- Creates one server-side notification record whenever a new lineup is posted.
+-- This preserves the public/no-login app behavior while documenting the
+-- Supabase-side fix that feeds public.lineup_notifications.
+CREATE OR REPLACE FUNCTION public.create_lineup_notification_on_insert()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    INSERT INTO public.lineup_notifications (
+        type,
+        lineup_id,
+        title,
+        body,
+        url,
+        is_read
+    )
+    VALUES (
+        'lineup_created',
+        NEW.id,
+        'New lineup added',
+        'A new worship lineup has been posted.',
+        '/lineups/' || NEW.id::text,
+        FALSE
+    )
+    ON CONFLICT (type, lineup_id)
+    WHERE type = 'lineup_created' AND lineup_id IS NOT NULL
+    DO NOTHING;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trigger_create_lineup_notification_on_insert ON public.lineups;
+CREATE TRIGGER trigger_create_lineup_notification_on_insert
+    AFTER INSERT ON public.lineups
+    FOR EACH ROW
+    EXECUTE FUNCTION public.create_lineup_notification_on_insert();
