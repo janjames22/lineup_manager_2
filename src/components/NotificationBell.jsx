@@ -56,8 +56,16 @@ export default function NotificationBell({
       if (!containerRef.current?.contains(event.target)) setOpen(false);
     };
 
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+
     document.addEventListener('pointerdown', onPointerDown);
-    return () => document.removeEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
   }, [open]);
 
   const handleNotificationClick = (notification) => {
@@ -78,6 +86,110 @@ export default function NotificationBell({
     navigate(targetUrl);
   };
 
+  const panelHeader = (
+    <div className="flex items-center justify-between gap-3">
+      <div>
+        <p className="text-sm font-black text-white">Notifications</p>
+        <p className="text-xs font-semibold text-slate-500">{unreadCount ? `${unreadCount} unread` : 'All caught up'}</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-xs font-black uppercase tracking-wider text-blue-300 transition-colors hover:bg-slate-800 hover:text-blue-200 disabled:cursor-not-allowed disabled:text-slate-600"
+          type="button"
+          onClick={onMarkAllRead}
+          disabled={!unreadCount}
+          aria-label="Mark all notifications read"
+        >
+          <CheckCheck size={16} aria-hidden="true" />
+          Read
+        </button>
+        <button
+          className="grid size-9 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
+          type="button"
+          onClick={() => setOpen(false)}
+          aria-label="Close notifications"
+        >
+          <X size={16} aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  );
+
+  const soundControl = (
+    <div className="flex items-center justify-between gap-3 border-b border-slate-800/80 px-4 py-3">
+      <span className="text-xs font-bold text-slate-400">Notification sound</span>
+      <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-300">
+        <input
+          type="checkbox"
+          className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500"
+          checked={soundEnabled}
+          onChange={(event) => onSoundEnabledChange?.(event.target.checked)}
+        />
+        <span>{soundEnabled ? 'On' : 'Off'}</span>
+      </label>
+    </div>
+  );
+
+  const notificationList = (
+    <div>
+      {sortedNotifications.length ? sortedNotifications.map((notification) => (
+        <div
+          key={notification.id}
+          className={`flex min-w-0 items-stretch gap-2 border-b p-2 last:border-b-0 ${
+            notification.read
+              ? 'border-slate-800/70 bg-slate-900'
+              : 'border-blue-500/20 bg-blue-500/[0.07]'
+          }`}
+        >
+          <button
+            type="button"
+            className={`flex min-w-0 flex-1 cursor-pointer items-start gap-3 rounded-xl px-2 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/70 ${
+              notification.read ? 'hover:bg-slate-800/80' : 'hover:bg-blue-500/10'
+            }`}
+            onClick={() => handleNotificationClick(notification)}
+            aria-label={`Open lineup for ${notification.message || notification.title || 'this notification'}`}
+          >
+            <span className={`mt-1.5 size-2.5 shrink-0 rounded-full ${notification.read ? 'bg-slate-700' : 'bg-blue-400 shadow-[0_0_0_4px_rgba(59,130,246,0.12)]'}`} />
+            <span className="min-w-0 flex-1">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className={`block min-w-0 flex-1 break-words text-sm font-black ${notification.read ? 'text-slate-300' : 'text-white'}`}>
+                  {notification.title || 'New lineup added'}
+                </span>
+                {!notification.read && (
+                  <span className="shrink-0 rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-black uppercase text-blue-200">
+                    New
+                  </span>
+                )}
+              </span>
+              <span className={`mt-1 block break-words text-xs font-semibold ${notification.read ? 'text-slate-500' : 'text-slate-300'}`}>
+                {notification.message || notification.body || 'Tap to open lineup'}
+              </span>
+              <span className="mt-1 block text-xs font-medium text-slate-600">
+                {new Date(notification.createdAt).toLocaleString()}
+              </span>
+            </span>
+          </button>
+          <button
+            className="grid size-9 shrink-0 place-items-center rounded-lg text-slate-500 transition-colors hover:bg-slate-800 hover:text-white"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onClearNotification(notification.id);
+            }}
+            aria-label="Remove notification"
+          >
+            <X size={14} aria-hidden="true" />
+          </button>
+        </div>
+      )) : (
+        <div className="p-5">
+          <p className="text-sm font-black text-slate-300">No notifications yet.</p>
+          <p className="mt-1 text-xs font-semibold text-slate-500">New lineup notifications will appear here.</p>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="relative" ref={containerRef}>
       <button
@@ -96,96 +208,54 @@ export default function NotificationBell({
       </button>
 
       {open && (
-        <div className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] top-[calc(env(safe-area-inset-top)+4.75rem)] z-[120] pointer-events-auto overflow-y-auto overscroll-contain rounded-xl border border-slate-700 bg-slate-900 shadow-2xl ring-1 ring-white/10 lg:absolute lg:inset-x-auto lg:bottom-auto lg:right-0 lg:top-full lg:mt-2 lg:max-h-[min(42rem,calc(100vh-8rem))] lg:w-[min(calc(100vw-2rem),22rem)]">
-          <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-800 bg-slate-900/95 p-4 backdrop-blur">
-            <div>
-              <p className="text-sm font-black text-white">Notifications</p>
-              <p className="text-xs font-semibold text-slate-500">{unreadCount ? `${unreadCount} unread` : 'All caught up'}</p>
-            </div>
-            <button
-              className="text-xs font-black uppercase tracking-wider text-blue-300 transition-colors hover:text-blue-200 disabled:cursor-not-allowed disabled:text-slate-600"
-              type="button"
-              onClick={onMarkAllRead}
-              disabled={!unreadCount}
-              aria-label="Mark all notifications read"
+        <>
+          <div
+            className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm lg:hidden"
+            onClick={() => setOpen(false)}
+            role="presentation"
+          >
+            <div
+              className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] top-[calc(env(safe-area-inset-top)+0.75rem)] flex max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl ring-1 ring-white/10"
+              onClick={(event) => event.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Notifications"
             >
-              <CheckCheck size={16} className="mr-1 inline" aria-hidden="true" />
-              Read
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between gap-3 border-b border-slate-800/80 px-4 py-3">
-            <span className="text-xs font-bold text-slate-400">Notification sound</span>
-            <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-300">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500"
-                checked={soundEnabled}
-                onChange={(event) => onSoundEnabledChange?.(event.target.checked)}
-              />
-              <span>{soundEnabled ? 'On' : 'Off'}</span>
-            </label>
-          </div>
-
-          <div className="border-b border-slate-800/80 px-4 py-3">
-            <PhoneNotificationsButton />
-          </div>
-
-          <div>
-            {sortedNotifications.length ? sortedNotifications.map((notification) => (
-              <div
-                key={notification.id}
-                className={`flex min-w-0 items-stretch gap-2 border-b p-2 last:border-b-0 ${
-                  notification.read
-                    ? 'border-slate-800/70 bg-slate-900'
-                    : 'border-blue-500/20 bg-blue-500/[0.07]'
-                }`}
-              >
+              <div className="shrink-0 border-b border-slate-800 bg-slate-950 p-4">
+                {panelHeader}
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
+                {soundControl}
+                <div className="border-b border-slate-800/80 px-4 py-3">
+                  <PhoneNotificationsButton />
+                </div>
+                {notificationList}
+              </div>
+              <div className="shrink-0 border-t border-slate-800 bg-slate-950 p-3">
                 <button
                   type="button"
-                  className={`flex min-w-0 flex-1 cursor-pointer items-start gap-3 rounded-xl px-2 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/70 ${
-                    notification.read ? 'hover:bg-slate-800/80' : 'hover:bg-blue-500/10'
-                  }`}
-                  onClick={() => handleNotificationClick(notification)}
-                  aria-label={`Open lineup for ${notification.message || notification.title || 'this notification'}`}
+                  className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-black text-white transition-colors hover:bg-slate-700"
+                  onClick={() => setOpen(false)}
                 >
-                  <span className={`mt-1.5 size-2.5 shrink-0 rounded-full ${notification.read ? 'bg-slate-700' : 'bg-blue-400 shadow-[0_0_0_4px_rgba(59,130,246,0.12)]'}`} />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className={`block min-w-0 flex-1 break-words text-sm font-black ${notification.read ? 'text-slate-300' : 'text-white'}`}>
-                        {notification.title || 'New lineup added'}
-                      </span>
-                      {!notification.read && (
-                        <span className="shrink-0 rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-black uppercase text-blue-200">
-                          New
-                        </span>
-                      )}
-                    </span>
-                    <span className={`mt-1 block break-words text-xs font-semibold ${notification.read ? 'text-slate-500' : 'text-slate-300'}`}>
-                      {notification.message}
-                    </span>
-                    <span className="mt-1 block text-xs font-medium text-slate-600">
-                      {new Date(notification.createdAt).toLocaleString()}
-                    </span>
-                  </span>
-                </button>
-                <button
-                  className="grid size-9 shrink-0 place-items-center rounded-lg text-slate-500 transition-colors hover:bg-slate-800 hover:text-white"
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onClearNotification(notification.id);
-                  }}
-                  aria-label="Remove notification"
-                >
-                  <X size={14} aria-hidden="true" />
+                  Close
                 </button>
               </div>
-            )) : (
-              <p className="p-5 text-sm font-semibold text-slate-500">No new notifications.</p>
-            )}
+            </div>
           </div>
-        </div>
+
+          <div className="absolute right-0 top-full z-[120] mt-2 hidden max-h-[min(42rem,calc(100dvh-8rem))] w-[min(calc(100vw-2rem),22rem)] overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ring-1 ring-white/10 lg:flex lg:flex-col">
+            <div className="shrink-0 border-b border-slate-800 bg-slate-900/95 p-4 backdrop-blur">
+              {panelHeader}
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+              {soundControl}
+              <div className="border-b border-slate-800/80 px-4 py-3">
+                <PhoneNotificationsButton />
+              </div>
+              {notificationList}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
