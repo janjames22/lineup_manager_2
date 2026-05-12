@@ -1,4 +1,5 @@
 import { Bell, CheckCheck, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PhoneNotificationsButton from './PhoneNotificationsButton';
@@ -25,6 +26,7 @@ export default function NotificationBell({
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
+  const mobilePanelRef = useRef(null);
   const navigate = useNavigate();
   const sortedNotifications = useMemo(() => {
     return [...notifications].sort((first, second) => {
@@ -53,7 +55,15 @@ export default function NotificationBell({
     if (!open) return undefined;
 
     const onPointerDown = (event) => {
-      if (!containerRef.current?.contains(event.target)) setOpen(false);
+      const target = event.target;
+      if (
+        containerRef.current?.contains(target)
+        || mobilePanelRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      setOpen(false);
     };
 
     const onKeyDown = (event) => {
@@ -65,6 +75,22 @@ export default function NotificationBell({
     return () => {
       document.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const isMobileViewport = window.matchMedia?.('(max-width: 1023px)').matches;
+    if (!isMobileViewport) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const previousOverscrollBehavior = document.body.style.overscrollBehavior;
+    document.body.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'contain';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.overscrollBehavior = previousOverscrollBehavior;
     };
   }, [open]);
 
@@ -190,6 +216,46 @@ export default function NotificationBell({
     </div>
   );
 
+  const mobileNotificationPanel = open && typeof document !== 'undefined'
+    ? createPortal(
+      <div
+        className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm lg:hidden"
+        onClick={() => setOpen(false)}
+        role="presentation"
+      >
+        <div
+          ref={mobilePanelRef}
+          className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] top-[calc(env(safe-area-inset-top)+0.75rem)] flex max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl ring-1 ring-white/10"
+          onClick={(event) => event.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Notifications"
+        >
+          <div className="shrink-0 border-b border-slate-800 bg-slate-950 p-4">
+            {panelHeader}
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
+            {soundControl}
+            <div className="border-b border-slate-800/80 px-4 py-3">
+              <PhoneNotificationsButton />
+            </div>
+            {notificationList}
+          </div>
+          <div className="shrink-0 border-t border-slate-800 bg-slate-950 p-3">
+            <button
+              type="button"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-black text-white transition-colors hover:bg-slate-700"
+              onClick={() => setOpen(false)}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )
+    : null;
+
   return (
     <div className="relative" ref={containerRef}>
       <button
@@ -207,55 +273,21 @@ export default function NotificationBell({
         )}
       </button>
 
-      {open && (
-        <>
-          <div
-            className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm lg:hidden"
-            onClick={() => setOpen(false)}
-            role="presentation"
-          >
-            <div
-              className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] top-[calc(env(safe-area-inset-top)+0.75rem)] flex max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl ring-1 ring-white/10"
-              onClick={(event) => event.stopPropagation()}
-              role="dialog"
-              aria-modal="true"
-              aria-label="Notifications"
-            >
-              <div className="shrink-0 border-b border-slate-800 bg-slate-950 p-4">
-                {panelHeader}
-              </div>
-              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
-                {soundControl}
-                <div className="border-b border-slate-800/80 px-4 py-3">
-                  <PhoneNotificationsButton />
-                </div>
-                {notificationList}
-              </div>
-              <div className="shrink-0 border-t border-slate-800 bg-slate-950 p-3">
-                <button
-                  type="button"
-                  className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-black text-white transition-colors hover:bg-slate-700"
-                  onClick={() => setOpen(false)}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
+      {mobileNotificationPanel}
 
-          <div className="absolute right-0 top-full z-[120] mt-2 hidden max-h-[min(42rem,calc(100dvh-8rem))] w-[min(calc(100vw-2rem),22rem)] overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ring-1 ring-white/10 lg:flex lg:flex-col">
-            <div className="shrink-0 border-b border-slate-800 bg-slate-900/95 p-4 backdrop-blur">
-              {panelHeader}
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-              {soundControl}
-              <div className="border-b border-slate-800/80 px-4 py-3">
-                <PhoneNotificationsButton />
-              </div>
-              {notificationList}
-            </div>
+      {open && (
+        <div className="absolute right-0 top-full z-[120] mt-2 hidden max-h-[min(42rem,calc(100dvh-8rem))] w-[min(calc(100vw-2rem),22rem)] overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ring-1 ring-white/10 lg:flex lg:flex-col">
+          <div className="shrink-0 border-b border-slate-800 bg-slate-900/95 p-4 backdrop-blur">
+            {panelHeader}
           </div>
-        </>
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+            {soundControl}
+            <div className="border-b border-slate-800/80 px-4 py-3">
+              <PhoneNotificationsButton />
+            </div>
+            {notificationList}
+          </div>
+        </div>
       )}
     </div>
   );

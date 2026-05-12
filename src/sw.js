@@ -392,6 +392,14 @@ precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 clientsClaim();
 
+// Activate a freshly deployed service worker as soon as the browser discovers it.
+// This helps installed PWAs move off an old cached shell without waiting for the
+// user to manually close every app window.
+self.addEventListener('install', (event) => {
+  console.log('[PWA] service worker installed', { buildVersion: BUILD_VERSION });
+  event.waitUntil(self.skipWaiting());
+});
+
 const appShellHandler = createHandlerBoundToURL('index.html');
 const navigationHandler = new NetworkFirst({
   cacheName: APP_SHELL_CACHE,
@@ -436,6 +444,17 @@ self.addEventListener('activate', (event) => {
         activeCaches: [PRECACHE_SUFFIX, RUNTIME_SUFFIX, APP_SHELL_CACHE, STATIC_ASSET_CACHE, IMAGE_CACHE],
       });
       await self.clients.claim();
+
+      if (!IS_DEV_BUILD && cachesToDelete.length && self.clients.matchAll) {
+        const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        await Promise.all(clientList.map((client) => {
+          if (!client.url || !client.navigate) return Promise.resolve();
+          const clientUrl = new URL(client.url);
+          if (clientUrl.origin !== self.location.origin) return Promise.resolve();
+          console.log('[PWA] refreshing client after service worker update', { url: client.url, buildVersion: BUILD_VERSION });
+          return client.navigate(client.url);
+        }));
+      }
     })()
   );
 });

@@ -77,12 +77,16 @@ export default function App() {
   };
 
   const registerSWResult = useRegisterSW({
+    immediate: true,
     onRegisteredSW(swUrl, registration) {
       registrationRef.current = registration;
       setSwRegistration(registration || null);
       logPwa('service worker registered', { swUrl, scope: registration?.scope });
 
       if (!registration) return;
+      registration.update().catch((error) => {
+        console.error('[PWA] initial service worker update check failed', error);
+      });
       if (registration.waiting) markWaitingWorkerAvailable();
       attachWorkerLifecycleLogs(registration, registration.installing);
 

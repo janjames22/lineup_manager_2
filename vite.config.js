@@ -19,7 +19,7 @@ export default defineConfig({
       srcDir: 'src',
       filename: 'sw.js',
       manifestFilename: 'manifest.json',
-      registerType: 'prompt',
+      registerType: 'autoUpdate',
       includeAssets: ['logo.png', 'favicon.png', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'],
       manifest: {
         name: 'Line Up Manager',
