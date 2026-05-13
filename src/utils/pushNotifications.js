@@ -256,7 +256,15 @@ async function saveSubscriptionToServer(subscription) {
 
   debugPush('API save response', result);
   storePushSubscriptionEndpoint(endpoint);
-  return result;
+  return {
+    ...result,
+    sent: {
+      endpoint,
+      device_id,
+      platform,
+      user_agent_saved: Boolean(user_agent),
+    },
+  };
 }
 
 async function checkSubscriptionSavedToServer(endpoint) {
@@ -458,11 +466,12 @@ export async function subscribeToLineupPushNotifications({ forceNew = false } = 
     endpoint: subscription.endpoint,
   });
 
-  await saveSubscriptionToServer(subscription);
+  const saveResult = await saveSubscriptionToServer(subscription);
 
   return {
     message: 'This device is subscribed.',
     subscription,
+    saveResult,
   };
 }
 
@@ -668,6 +677,9 @@ export async function getNotificationDiagnostics({ refreshServer = false, ensure
       savedInSupabase: Boolean(serverSubscription?.saved),
       activeInSupabase: Boolean(serverSubscription?.saved) && serverSubscription?.active !== false,
       saveCheckUnavailable: Boolean(serverSubscription?.checkUnavailable),
+      serverDeviceId: serverSubscription?.deviceId || serverSubscription?.device_id || '',
+      serverPlatform: serverSubscription?.platform || '',
+      serverUserAgentSaved: Boolean(serverSubscription?.userAgentSaved || serverSubscription?.user_agent_saved),
       serverLastSeenAt: serverSubscription?.lastSeenAt || null,
       serverUpdatedAt: serverSubscription?.updatedAt || null,
       serverError: serverSubscription?.error || '',
@@ -684,6 +696,7 @@ export async function getNotificationDiagnostics({ refreshServer = false, ensure
       buildVersion: BUILD_VERSION,
       serviceWorkerVersion: BUILD_VERSION,
       deviceId: getPushDeviceId(),
+      platform: getPushPlatform(),
     },
   };
 }

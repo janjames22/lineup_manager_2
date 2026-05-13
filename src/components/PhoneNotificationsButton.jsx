@@ -58,6 +58,7 @@ export default function PhoneNotificationsButton() {
   const [allTestBusy, setAllTestBusy] = useState(false);
   const [diagnosticBusy, setDiagnosticBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [lastSaveResult, setLastSaveResult] = useState(null);
 
   const refreshHealth = useCallback(async (options = {}) => {
     const nextHealth = await checkLineupPushSubscriptionHealth(options);
@@ -106,6 +107,7 @@ export default function PhoneNotificationsButton() {
 
     try {
       const result = await subscribeToLineupPushNotifications();
+      setLastSaveResult(result?.saveResult || null);
       await refreshDiagnostics({ ensureRegistration: true, refreshServer: true });
       setMessage(result?.message || 'This device is subscribed.');
     } catch (error) {
@@ -123,10 +125,14 @@ export default function PhoneNotificationsButton() {
 
     try {
       const result = await resubscribeToLineupPushNotifications();
-      await refreshDiagnostics({ ensureRegistration: true, refreshServer: true });
-      setMessage(result?.message || 'Device resubscribed for phone notifications.');
+      setLastSaveResult(result?.saveResult || null);
+      const nextDiagnostics = await refreshDiagnostics({ ensureRegistration: true, refreshServer: true });
+      const sent = result?.saveResult?.sent || result?.saveResult?.received || {};
+      const saved = result?.saveResult?.verification?.saved || nextDiagnostics?.subscription?.savedInSupabase;
+      setMessage(`${result?.message || 'Device resubscribed for phone notifications.'} device_id: ${sent.device_id || 'missing'}, platform: ${sent.platform || 'missing'}, saved in Supabase: ${saved ? 'yes' : 'no'}.`);
     } catch (error) {
       console.error('[PushNotifications] failed to resubscribe device:', error);
+      setLastSaveResult({ error: error?.message || 'Unable to resubscribe this device.' });
       await refreshDiagnostics().catch(() => setStatus(getPushSupportStatus()));
       setMessage(error?.message || 'Unable to resubscribe this device.');
     } finally {
@@ -140,6 +146,7 @@ export default function PhoneNotificationsButton() {
 
     try {
       const result = await unsubscribeFromLineupPushNotifications();
+      setLastSaveResult(null);
       await refreshDiagnostics();
       setMessage(result?.message || 'Phone notifications disabled for this device.');
     } catch (error) {
@@ -219,6 +226,8 @@ export default function PhoneNotificationsButton() {
   const subscriptionStatus = diagnostics?.subscription;
   const metadata = diagnostics?.metadata;
   const app = diagnostics?.app;
+  const lastSent = lastSaveResult?.sent || lastSaveResult?.received || null;
+  const lastVerification = lastSaveResult?.verification || null;
   const isInstalledPwa = status.isStandalone;
   const needsIosInstallHelp = status.isIos && !isInstalledPwa;
 
@@ -303,6 +312,17 @@ export default function PhoneNotificationsButton() {
             tone={subscriptionStatus?.savedInSupabase ? 'good' : 'warn'}
           />
           <DiagnosticRow label="Device ID" value={app?.deviceId} />
+          <DiagnosticRow label="Push platform" value={app?.platform} />
+          <DiagnosticRow label="Supabase device ID" value={subscriptionStatus?.serverDeviceId} tone={subscriptionStatus?.serverDeviceId ? 'good' : 'warn'} />
+          <DiagnosticRow label="Supabase platform" value={subscriptionStatus?.serverPlatform} tone={subscriptionStatus?.serverPlatform ? 'good' : 'warn'} />
+          <DiagnosticRow label="Supabase user agent" value={subscriptionStatus?.serverUserAgentSaved} tone={subscriptionStatus?.serverUserAgentSaved ? 'good' : 'warn'} />
+          <DiagnosticRow label="Last sent device_id" value={lastSent?.device_id} tone={lastSent?.device_id ? 'good' : 'warn'} />
+          <DiagnosticRow label="Last sent platform" value={lastSent?.platform} tone={lastSent?.platform ? 'good' : 'warn'} />
+          <DiagnosticRow
+            label="Last save verified"
+            value={lastSaveResult?.error ? `Error: ${lastSaveResult.error}` : lastVerification ? Boolean(lastVerification.saved) : ''}
+            tone={lastVerification?.saved ? 'good' : lastSaveResult?.error ? 'warn' : 'slate'}
+          />
           <DiagnosticRow label="Last subscription sync" value={metadata?.lastSubscriptionSyncAt} />
           <DiagnosticRow label="Last push received" value={metadata?.lastPushReceivedAt} />
           <DiagnosticRow label="App version" value={app?.version} />

@@ -68,6 +68,31 @@ export default async function handler(request, response) {
       verified: true,
       lastSeenAt: verified.last_seen_at || null,
       updatedAt: verified.updated_at || null,
+      received: {
+        endpoint: subscription.endpoint,
+        device_id: subscription.device_id,
+        platform: subscription.platform,
+        user_agent_saved: Boolean(subscription.user_agent),
+      },
+      upserted: {
+        endpoint: saved.endpoint,
+        device_id: saved.device_id || '',
+        platform: saved.platform || '',
+        user_agent_saved: Boolean(saved.user_agent),
+        is_active: saved.is_active !== false,
+        last_seen_at: saved.last_seen_at || null,
+        updated_at: saved.updated_at || null,
+      },
+      verification: {
+        saved: Boolean(verified.endpoint),
+        endpoint: verified.endpoint || '',
+        device_id: verified.device_id || '',
+        platform: verified.platform || '',
+        user_agent_saved: Boolean(verified.user_agent),
+        is_active: verified.is_active !== false,
+        last_seen_at: verified.last_seen_at || null,
+        updated_at: verified.updated_at || null,
+      },
     });
   } catch (error) {
     console.error('[PushNotifications] failed to save push subscription:', error);

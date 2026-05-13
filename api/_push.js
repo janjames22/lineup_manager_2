@@ -117,10 +117,10 @@ export function normalizeSubscription(body = {}, request) {
     endpoint,
     p256dh,
     auth,
-    user_agent: body.user_agent || body.userAgent || source.user_agent || source.userAgent || getHeader(request, 'user-agent') || '',
-    device_label: body.device_label || body.deviceLabel || source.device_label || source.deviceLabel || '',
-    device_id: body.device_id || body.deviceId || source.device_id || source.deviceId || '',
-    platform: body.platform || source.platform || '',
+    user_agent: body.user_agent || body.userAgent || source.user_agent || source.userAgent || getHeader(request, 'user-agent') || null,
+    device_label: body.device_label || body.deviceLabel || source.device_label || source.deviceLabel || null,
+    device_id: body.device_id || body.deviceId || source.device_id || source.deviceId || null,
+    platform: body.platform || source.platform || null,
   };
 }
 
@@ -189,13 +189,18 @@ export async function upsertPushSubscription(supabase, subscription, { selectRes
     endpoint: subscription.endpoint,
     p256dh: subscription.p256dh,
     auth: subscription.auth,
-    user_agent: subscription.user_agent || '',
-    device_label: subscription.device_label || '',
-    device_id: subscription.device_id || '',
-    platform: subscription.platform || '',
+    user_agent: subscription.user_agent || null,
+    device_label: subscription.device_label || null,
+    device_id: subscription.device_id || null,
+    platform: subscription.platform || null,
     updated_at: now,
     last_seen_at: now,
     is_active: true,
+  };
+  const loggedRecord = {
+    ...record,
+    p256dh: record.p256dh ? '[present]' : '[missing]',
+    auth: record.auth ? '[present]' : '[missing]',
   };
 
   logPushServer('push subscription upsert start', {
@@ -204,42 +209,87 @@ export async function upsertPushSubscription(supabase, subscription, { selectRes
     platform: subscription.platform,
     hasUserAgent: Boolean(subscription.user_agent),
   });
+  logPushServer('Supabase upsert payload', loggedRecord);
 
-  const query = supabase
+  const upsertResult = await supabase
     .from('push_subscriptions')
-    .upsert(record, { onConflict: 'endpoint' });
+    .upsert(record, { onConflict: 'endpoint', ignoreDuplicates: false });
 
-  const result = selectResult
-    ? await query.select('endpoint,device_id,platform,user_agent,is_active,last_seen_at,updated_at').single()
-    : await query;
-
-  if (!result.error) {
-    logPushServer('push subscription upsert success', {
-      endpoint: result.data?.endpoint || subscription.endpoint,
-      deviceId: result.data?.device_id || subscription.device_id,
-      platform: result.data?.platform || subscription.platform,
-      hasUserAgent: Boolean(result.data?.user_agent || subscription.user_agent),
-      updatedAt: result.data?.updated_at || now,
+  if (upsertResult.error) {
+    console.error('[PushNotifications] push subscription upsert failure:', {
+      endpoint: subscription.endpoint,
+      deviceId: subscription.device_id,
+      platform: subscription.platform,
+      errorCode: upsertResult.error.code,
+      errorMessage: upsertResult.error.message,
     });
-    return result.data || { endpoint: subscription.endpoint };
+
+    if (MISSING_COLUMN_CODES.has(upsertResult.error.code)) {
+      const schemaError = new Error('push_subscriptions table is missing metadata columns. Apply supabase-schema.sql, then resubscribe this device.');
+      schemaError.code = upsertResult.error.code;
+      schemaError.cause = upsertResult.error;
+      throw schemaError;
+    }
+
+    throw upsertResult.error;
   }
 
-  console.error('[PushNotifications] push subscription upsert failure:', {
+  logPushServer('push subscription upsert success', {
     endpoint: subscription.endpoint,
     deviceId: subscription.device_id,
     platform: subscription.platform,
-    errorCode: result.error.code,
-    errorMessage: result.error.message,
+    hasUserAgent: Boolean(subscription.user_agent),
+    updatedAt: now,
   });
 
-  if (MISSING_COLUMN_CODES.has(result.error.code)) {
-    const schemaError = new Error('push_subscriptions table is missing metadata columns. Apply supabase-schema.sql, then resubscribe this device.');
-    schemaError.code = result.error.code;
-    schemaError.cause = result.error;
-    throw schemaError;
+  if (!selectResult) {
+    return {
+      endpoint: subscription.endpoint,
+      device_id: subscription.device_id,
+      platform: subscription.platform,
+      user_agent: subscription.user_agent,
+      is_active: true,
+      last_seen_at: now,
+      updated_at: now,
+    };
   }
 
-  throw result.error;
+  const { endpoint, ...updateRecord } = record;
+  const updateResult = await supabase
+    .from('push_subscriptions')
+    .update(updateRecord)
+    .eq('endpoint', endpoint)
+    .select('endpoint,device_id,platform,user_agent,is_active,last_seen_at,updated_at')
+    .single();
+
+  if (updateResult.error) {
+    console.error('[PushNotifications] push subscription metadata update failure:', {
+      endpoint: subscription.endpoint,
+      deviceId: subscription.device_id,
+      platform: subscription.platform,
+      errorCode: updateResult.error.code,
+      errorMessage: updateResult.error.message,
+    });
+
+    if (MISSING_COLUMN_CODES.has(updateResult.error.code)) {
+      const schemaError = new Error('push_subscriptions table is missing metadata columns. Apply supabase-schema.sql, then resubscribe this device.');
+      schemaError.code = updateResult.error.code;
+      schemaError.cause = updateResult.error;
+      throw schemaError;
+    }
+
+    throw updateResult.error;
+  }
+
+  logPushServer('push subscription metadata update success', {
+    endpoint: updateResult.data?.endpoint || subscription.endpoint,
+    deviceId: updateResult.data?.device_id || '',
+    platform: updateResult.data?.platform || '',
+    hasUserAgent: Boolean(updateResult.data?.user_agent),
+    updatedAt: updateResult.data?.updated_at || now,
+  });
+
+  return updateResult.data;
 }
 
 export async function verifyPushSubscriptionSaved(supabase, endpoint) {
