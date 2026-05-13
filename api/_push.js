@@ -1,5 +1,6 @@
 /* global process */
 import { createClient } from '@supabase/supabase-js';
+import { createHash } from 'node:crypto';
 import webPush from 'web-push';
 
 export const MISSING_COLUMN_CODES = new Set(['42P01', '42703', 'PGRST204', 'PGRST205']);
@@ -47,6 +48,34 @@ export function getRequestBody(request) {
 
 export function getHeader(request, name) {
   return request?.headers?.[name] || request?.headers?.get?.(name) || '';
+}
+
+function detectPlatformFromUserAgent(userAgent = '', hintedPlatform = '') {
+  const ua = String(userAgent || '');
+  const hint = String(hintedPlatform || '');
+  const isIos = /iPad|iPhone|iPod/i.test(ua) || /Macintosh/i.test(ua) && /Mobile\/\w+/i.test(ua);
+  const isAndroid = /Android/i.test(ua);
+  const isSafari = /Safari/i.test(ua) && !/(CriOS|FxiOS|EdgiOS|OPiOS|Chrome|Chromium|Edg|Firefox)/i.test(ua);
+  const isChrome = /(Chrome|CriOS|Chromium|Edg\/|OPR\/)/i.test(ua);
+  const isMac = /Macintosh|Mac OS X/i.test(ua) && !isIos;
+
+  if (PUSH_PLATFORM_VALUES.has(hint)) return hint;
+  if (hint === 'ios') return 'ios-pwa';
+  if (hint === 'android') return 'android-chrome';
+  if (hint === 'web') return isMac && isSafari ? 'mac-safari' : isChrome ? 'desktop-chrome' : 'desktop-other';
+  if (isIos) return 'ios-pwa';
+  if (isAndroid) return 'android-chrome';
+  if (isMac && isSafari) return 'mac-safari';
+  if (isChrome) return 'desktop-chrome';
+  return 'desktop-other';
+}
+
+function createFallbackDeviceId(endpoint = '', userAgent = '') {
+  const hash = createHash('sha256')
+    .update(`${endpoint}|${userAgent}`)
+    .digest('hex')
+    .slice(0, 32);
+  return `server-${hash}`;
 }
 
 export function allowMethods(request, response, methods) {
@@ -112,15 +141,24 @@ export function normalizeSubscription(body = {}, request) {
   const endpoint = body.endpoint || source.endpoint || '';
   const p256dh = body.p256dh || keys.p256dh || source.p256dh || '';
   const auth = body.auth || keys.auth || source.auth || '';
+  const userAgent = body.user_agent || body.userAgent || source.user_agent || source.userAgent || getHeader(request, 'user-agent') || null;
+  const requestedDeviceId = body.device_id || body.deviceId || source.device_id || source.deviceId || null;
+  const requestedPlatform = body.platform || source.platform || null;
+  const deviceId = requestedDeviceId || (endpoint ? createFallbackDeviceId(endpoint, userAgent || '') : null);
+  const platform = detectPlatformFromUserAgent(userAgent || '', requestedPlatform || '');
 
   return {
     endpoint,
     p256dh,
     auth,
-    user_agent: body.user_agent || body.userAgent || source.user_agent || source.userAgent || getHeader(request, 'user-agent') || null,
+    user_agent: userAgent,
     device_label: body.device_label || body.deviceLabel || source.device_label || source.deviceLabel || null,
-    device_id: body.device_id || body.deviceId || source.device_id || source.deviceId || null,
-    platform: body.platform || source.platform || null,
+    device_id: deviceId,
+    platform,
+    metadata_source: {
+      device_id: requestedDeviceId ? 'client' : 'server-fallback',
+      platform: requestedPlatform ? 'client' : 'server-fallback',
+    },
   };
 }
 

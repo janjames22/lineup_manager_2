@@ -28,6 +28,7 @@ export default async function handler(request, response) {
     deviceIdReceived: subscription.device_id,
     platformReceived: subscription.platform,
     hasUserAgent: Boolean(subscription.user_agent),
+    metadataSource: subscription.metadata_source,
   });
 
   const validationError = validatePushSubscription(subscription);
@@ -66,6 +67,7 @@ export default async function handler(request, response) {
         device_id: subscription.device_id,
         platform: subscription.platform,
         user_agent_saved: Boolean(subscription.user_agent),
+        metadata_source: subscription.metadata_source,
       },
       upserted: {
         endpoint: saved.endpoint,
