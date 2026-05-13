@@ -1,9 +1,25 @@
 import { defineConfig } from 'vite';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+function readVersionInfo() {
+  try {
+    return JSON.parse(readFileSync(resolve(__dirname, 'public/version.json'), 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+const VERSION_INFO = readVersionInfo();
 const BUILD_VERSION =
+  VERSION_INFO.serviceWorkerVersion ||
+  VERSION_INFO.version ||
   globalThis.process?.env?.VERCEL_GIT_COMMIT_SHA?.slice(0, 8) ||
   new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
 

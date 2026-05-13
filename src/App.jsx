@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+/* global __APP_BUILD_VERSION__ */
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import InstallBanner from './components/InstallBanner';
@@ -23,8 +24,19 @@ import { unlockNotificationAudio } from './utils/notificationAudio';
 
 const UPDATE_CHECK_TIMEOUT_MS = 5000;
 const FOREGROUND_UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
-const UPDATE_ACTIVATION_TIMEOUT_MS = 4000;
+const UPDATE_ACTIVATION_TIMEOUT_MS = 2000;
 const UPDATE_RELOAD_MARKER_KEY = 'pwa-update-reload-reason';
+const CURRENT_BUILD_VERSION = typeof __APP_BUILD_VERSION__ === 'string' ? __APP_BUILD_VERSION__ : 'dev';
+const VERSION_URL = '/version.json';
+const UPDATE_CACHE_PREFIXES = [
+  'lineup-manager-app-shell-',
+  'lineup-manager-assets-',
+  'lineup-manager-precache-',
+  'lineup-manager-runtime-',
+  'workbox-precache',
+  'workbox-runtime',
+];
+
 function logPwa(message, details) {
   if (typeof details === 'undefined') {
     console.log(`[PWA] ${message}`);
@@ -32,6 +44,31 @@ function logPwa(message, details) {
   }
 
   console.log(`[PWA] ${message}`, details);
+}
+
+async function fetchAppVersionInfo() {
+  const response = await fetch(`${VERSION_URL}?t=${Date.now()}`, {
+    cache: 'no-store',
+    headers: {
+      'Cache-Control': 'no-cache',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Version check failed with ${response.status}`);
+  }
+
+  return response.json();
+}
+
+async function clearAppCachesForUpdate() {
+  if (typeof caches === 'undefined') return [];
+  const cacheNames = await caches.keys();
+  const cachesToDelete = cacheNames.filter((cacheName) => (
+    UPDATE_CACHE_PREFIXES.some((prefix) => cacheName.startsWith(prefix))
+  ));
+  await Promise.all(cachesToDelete.map((cacheName) => caches.delete(cacheName)));
+  return cachesToDelete;
 }
 
 export default function App() {
@@ -44,6 +81,8 @@ export default function App() {
   const [swRegistration, setSwRegistration] = useState(null);
   const [manualNeedUpdate, setManualNeedUpdate] = useState(false);
   const [checkingForUpdate, setCheckingForUpdate] = useState(false);
+  const [applyingUpdate, setApplyingUpdate] = useState(false);
+  const [availableVersionInfo, setAvailableVersionInfo] = useState(null);
   const [shareQrOpen, setShareQrOpen] = useState(false);
   const { showToast } = useToast();
   const {
@@ -56,8 +95,23 @@ export default function App() {
     setSoundEnabled: setLineupNotificationSoundEnabled,
   } = useLineupNotifications();
 
+  const refreshAvailableVersionInfo = useCallback(async () => {
+    const versionInfo = await fetchAppVersionInfo();
+    setAvailableVersionInfo(versionInfo);
+    logPwa('version info fetched', {
+      currentBuildVersion: CURRENT_BUILD_VERSION,
+      availableVersion: versionInfo.version,
+      serviceWorkerVersion: versionInfo.serviceWorkerVersion,
+      buildTime: versionInfo.buildTime,
+    });
+    return versionInfo;
+  }, []);
+
   const markWaitingWorkerAvailable = () => {
     setManualNeedUpdate(true);
+    refreshAvailableVersionInfo().catch((error) => {
+      console.warn('[PWA] version info could not be fetched for update prompt', error);
+    });
     if (!waitingWorkerLoggedRef.current) {
       logPwa('new service worker waiting');
       waitingWorkerLoggedRef.current = true;
@@ -115,20 +169,31 @@ export default function App() {
   useEffect(() => {
     if (!needUpdate) return;
     setManualNeedUpdate(true);
+    refreshAvailableVersionInfo().catch((error) => {
+      console.warn('[PWA] version info could not be fetched for update state', error);
+    });
     if (!waitingWorkerLoggedRef.current) {
       logPwa('new service worker waiting');
       waitingWorkerLoggedRef.current = true;
     }
-  }, [needUpdate]);
+  }, [needUpdate, refreshAvailableVersionInfo]);
 
   useEffect(() => {
     const reloadReason = sessionStorage.getItem(UPDATE_RELOAD_MARKER_KEY);
     if (reloadReason) {
       logPwa('page reloaded with latest bundle', { reason: reloadReason });
       sessionStorage.removeItem(UPDATE_RELOAD_MARKER_KEY);
+      showToast('Updated to the latest Line Up Manager build.', 'success', 4500);
     }
     return undefined;
-  }, []);
+  }, [showToast]);
+
+  useEffect(() => {
+    refreshAvailableVersionInfo().catch((error) => {
+      console.warn('[PWA] initial version info fetch failed', error);
+    });
+    return undefined;
+  }, [refreshAvailableVersionInfo]);
 
   useEffect(() => {
     const unlockAudio = () => {
@@ -183,7 +248,9 @@ export default function App() {
     reloadTriggeredRef.current = true;
     logPwa('page reloaded with latest bundle', { reason });
     sessionStorage.setItem(UPDATE_RELOAD_MARKER_KEY, reason);
-    window.location.reload();
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.set('appUpdate', Date.now().toString());
+    window.location.replace(nextUrl.toString());
   };
 
   useEffect(() => {
@@ -255,6 +322,11 @@ export default function App() {
       return;
     }
 
+    if (promptVisible) {
+      showToast('Update is ready. Tap Update Now to load the latest build.', 'info', 4500);
+      return;
+    }
+
     const registration = registrationRef.current;
     if (!registration) {
       showToast('Update service is still starting. Please try again.', 'error');
@@ -270,6 +342,10 @@ export default function App() {
     lastUpdateCheckAtRef.current = Date.now();
 
     try {
+      const versionInfo = await refreshAvailableVersionInfo().catch((error) => {
+        console.warn('[PWA] manual version check failed', error);
+        return null;
+      });
       const waitingWorkerPromise = waitForWaitingWorker(registration);
       await registration.update();
       const hasWaitingWorker = await waitingWorkerPromise;
@@ -279,7 +355,13 @@ export default function App() {
         return;
       }
 
-      showToast('You already have the latest version.', 'info');
+      showToast(
+        versionInfo?.version
+          ? `You are already on the latest available build: ${versionInfo.version}.`
+          : 'You already have the latest available build.',
+        'info',
+        4500
+      );
     } catch (error) {
       console.error('Manual update check failed:', error);
       showToast('Unable to check for updates right now.', 'error');
@@ -288,16 +370,35 @@ export default function App() {
     }
   };
 
-  const handleAcceptUpdate = () => {
-    logPwa('activating new service worker');
+  const handleAcceptUpdate = async () => {
+    if (applyingUpdate) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      showToast('Offline mode. Connect to the internet before applying an update.', 'info', 4500);
+      return;
+    }
 
-    const registration = registrationRef.current;
+    setApplyingUpdate(true);
+    logPwa('activating new service worker');
+    showToast('Applying update and refreshing the app...', 'info', 3000);
+
+    const registration = registrationRef.current || await navigator.serviceWorker?.getRegistration?.('/');
+    if (registration) {
+      registrationRef.current = registration;
+      await registration.update().catch((error) => {
+        console.warn('[PWA] update check during activation failed', error);
+      });
+    }
     const waitingWorker = registration?.waiting;
 
     if (!waitingWorker) {
-      logPwa('new service worker waiting', false);
-      showToast('No update is waiting right now. Please check again.', 'info');
+      logPwa('no waiting service worker; refreshing active build');
       closeUpdatePrompt();
+      const deletedCaches = await clearAppCachesForUpdate().catch((error) => {
+        console.warn('[PWA] cache cleanup before reload failed', error);
+        return [];
+      });
+      logPwa('caches cleared before update reload', { deletedCaches });
+      reloadAppForUpdate('update-prompt-refresh');
       return;
     }
 
@@ -327,6 +428,8 @@ export default function App() {
       navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
       showToast('Unable to apply the update automatically. Reloading now.', 'error');
       reloadAppForUpdate('postmessage-error');
+    } finally {
+      setApplyingUpdate(false);
     }
   };
 
@@ -334,6 +437,7 @@ export default function App() {
     setOfflineReady(false);
     setNeedUpdate(false);
     setManualNeedUpdate(false);
+    setApplyingUpdate(false);
   };
 
   return (
@@ -358,6 +462,8 @@ export default function App() {
         <UpdatePrompt 
           onUpdate={handleAcceptUpdate} 
           onDismiss={closeUpdatePrompt} 
+          updating={applyingUpdate}
+          versionInfo={availableVersionInfo}
         />
       )}
       
@@ -386,12 +492,15 @@ export default function App() {
             <div className="min-w-0">
               <p className="text-sm font-black text-white tracking-tight">About & Updates</p>
               <p className="text-xs font-medium text-slate-400">Installed app not showing fresh changes yet? Check for updates here.</p>
+              <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Build {availableVersionInfo?.version || CURRENT_BUILD_VERSION}
+              </p>
             </div>
             <button
               type="button"
               className="btn-secondary w-full sm:w-auto"
               onClick={checkForUpdates}
-              disabled={checkingForUpdate}
+              disabled={checkingForUpdate || applyingUpdate}
             >
               {checkingForUpdate ? 'Checking...' : 'Check for updates'}
             </button>

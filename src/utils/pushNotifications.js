@@ -7,8 +7,8 @@ const DEVICE_ID_KEY = 'ccfbc_device_id';
 const STABLE_PRODUCTION_HOST = 'ccfbc-lineup-manager-code.vercel.app';
 const API_BASE = '/api/push';
 const IS_DEV = import.meta.env.DEV;
-const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.0';
 const BUILD_VERSION = typeof __APP_BUILD_VERSION__ === 'string' ? __APP_BUILD_VERSION__ : 'dev';
+const APP_VERSION = import.meta.env.VITE_APP_VERSION || BUILD_VERSION;
 
 let cachedVapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
 

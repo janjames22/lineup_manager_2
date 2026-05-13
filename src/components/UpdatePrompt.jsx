@@ -1,6 +1,8 @@
 import { RefreshCw, X, Sparkles } from 'lucide-react';
 
-export default function UpdatePrompt({ onUpdate, onDismiss }) {
+export default function UpdatePrompt({ onUpdate, onDismiss, versionInfo, updating = false }) {
+  const versionLabel = versionInfo?.version || versionInfo?.serviceWorkerVersion || '';
+
   return (
     <div className="fixed inset-x-0 top-0 z-[150] p-3 animate-slide-down pointer-events-none print:hidden sm:p-4">
       <div className="mobile-dialog mx-auto max-w-xl pointer-events-auto border border-blue-500/30 bg-slate-900/90 p-4 shadow-[0_20px_40px_rgba(0,0,0,0.6)] ring-1 ring-white/10 backdrop-blur-xl">
@@ -18,16 +20,17 @@ export default function UpdatePrompt({ onUpdate, onDismiss }) {
               New version available
             </h3>
             <p className="truncate text-xs font-medium text-slate-400">
-              Tap to update and load the latest Line Up Manager build.
+              {versionLabel ? `Ready to load ${versionLabel}.` : 'Tap to update and load the latest Line Up Manager build.'}
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={onUpdate}
+              disabled={updating}
               className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white shadow-lg shadow-blue-900/20 transition-all hover:bg-blue-500 active:scale-95"
             >
-              Update Now
+              {updating ? 'Updating...' : 'Update Now'}
             </button>
             <button
               onClick={onDismiss}
