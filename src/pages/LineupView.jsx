@@ -130,7 +130,7 @@ export default function LineupView() {
                   <div className="min-w-0 flex-1">
                     <div className="mb-1 flex min-w-0 items-center gap-3">
                       <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-blue-950 text-sm font-black text-blue-400 ring-1 ring-blue-500/20 shadow-lg">{index + 1}</span>
-                      <h2 className="min-w-0 break-words text-xl font-black leading-tight text-white sm:text-2xl">{lineupSong.title}</h2>
+                      <h2 className="text-wrap-anywhere min-w-0 text-lg font-black leading-tight text-white sm:text-2xl">{lineupSong.title}</h2>
                     </div>
                     {song?.artist && <p className="break-words text-slate-400 font-bold sm:ml-10">{song.artist}</p>}
                     {lineupSong.notes && <p className="mt-2 break-words text-sm font-medium text-slate-300 bg-slate-950/50 p-3 rounded-xl border border-slate-800/50 sm:ml-10">{lineupSong.notes}</p>}
@@ -167,7 +167,7 @@ export default function LineupView() {
                 
                 <div className="mt-2 w-full min-w-0 max-w-full overflow-hidden sm:ml-10 sm:w-auto">
                   <ChordChartViewer
-                    preClassName="!p-5 !bg-slate-950/80 !border-slate-800/50"
+                    preClassName="!p-3 !bg-slate-950/80 !border-slate-800/50 sm:!p-5"
                     chordChart={song ? transposeChords(song.chordChart, delta) : ''}
                     emptyText={song ? 'No chord chart added.' : 'Song not found in library.'}
                     showControls={index === 0}

@@ -531,7 +531,7 @@ export default function App() {
   };
 
   return (
-    <div className={`app-shell ${showAppChrome ? 'pb-28 lg:pb-0' : ''}`}>
+    <div className="app-shell">
       {showAppChrome && (
         <Navbar
           onShareApp={() => setShareQrOpen(true)}
@@ -586,7 +586,7 @@ export default function App() {
       </div>
 
       {showAppChrome && (
-        <footer className="border-t border-slate-800/50 bg-slate-900/60 px-4 pt-4 pb-[calc(6.75rem+env(safe-area-inset-bottom,0px))] print:hidden sm:px-6 sm:py-4 lg:px-8">
+        <footer className="app-footer border-t border-slate-800/50 bg-slate-900/60 px-4 pt-4 print:hidden sm:px-6 sm:pt-4 lg:px-8">
           <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="text-sm font-black text-white tracking-tight">About & Updates</p>

@@ -32,21 +32,21 @@ export default function LineupList() {
       {error && <p className="mb-4 text-sm font-semibold text-red-300">{error}</p>}
 
       {lineups.length ? (
-        <div className="grid w-full min-w-0 gap-4">
+        <div className="grid w-full min-w-0 gap-3 sm:gap-4">
           {lineups.map((lineup) => (
             <article key={lineup.id} className="panel w-full">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-black uppercase tracking-widest text-blue-400">{lineup.date} • {lineup.serviceTime}</p>
-                  <h2 className="mt-0.5 break-words text-xl font-black text-white leading-tight">{lineup.worshipLeader || 'Worship Leader TBD'}</h2>
-                  <p className="text-sm font-bold text-slate-500">{lineup.songs.length} songs</p>
+                  <p className="text-wrap-anywhere text-[10px] font-black uppercase leading-snug tracking-normal text-blue-400 sm:text-xs sm:tracking-widest">{lineup.date} • {lineup.serviceTime}</p>
+                  <h2 className="text-wrap-anywhere mt-1 text-lg font-black leading-tight text-white sm:text-xl">{lineup.worshipLeader || 'Worship Leader TBD'}</h2>
+                  <p className="mt-1 text-xs font-bold text-slate-500 sm:text-sm">{lineup.songs.length} songs</p>
                 </div>
-                <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
-                  <Link className="btn-secondary w-full sm:w-auto" to={`/lineups/${lineup.id}`}><Eye size={16} aria-hidden="true" /> View</Link>
-                  <Link className="btn-secondary w-full sm:w-auto" to={`/lineups/${lineup.id}/edit`}><Pencil size={16} aria-hidden="true" /> Edit</Link>
-                  <Link className="btn-secondary w-full sm:w-auto" to={`/lineups/${lineup.id}/print`}><Printer size={16} aria-hidden="true" /> Print</Link>
+                <div className="grid w-full min-w-0 grid-cols-3 gap-2 lg:flex lg:w-auto lg:flex-wrap lg:justify-end">
+                  <Link className="btn-secondary w-full !px-2 !py-2 text-xs lg:w-auto lg:!px-5 lg:!py-3 lg:text-[15px]" to={`/lineups/${lineup.id}`}><Eye size={16} aria-hidden="true" /> View</Link>
+                  <Link className="btn-secondary w-full !px-2 !py-2 text-xs lg:w-auto lg:!px-5 lg:!py-3 lg:text-[15px]" to={`/lineups/${lineup.id}/edit`}><Pencil size={16} aria-hidden="true" /> Edit</Link>
+                  <Link className="btn-secondary w-full !px-2 !py-2 text-xs lg:w-auto lg:!px-5 lg:!py-3 lg:text-[15px]" to={`/lineups/${lineup.id}/print`}><Printer size={16} aria-hidden="true" /> Print</Link>
                   <OfflineItemButton
-                    className="col-span-2 w-full sm:w-auto"
+                    className="col-span-3 w-full lg:w-auto"
                     item={lineup}
                     offline={offlineLineups}
                     type="lineup"

@@ -39,8 +39,9 @@ export default function OfflineStatusBadge() {
   const Icon = config.icon;
 
   return (
-    <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold shadow-sm print:hidden ${config.classes}`} title="Downloaded songs and lineups can be opened even without internet.">
-      <Icon size={14} className={config.iconClasses || ''} /> {config.label}
+    <div className={`flex max-w-full min-w-0 items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold shadow-sm print:hidden ${config.classes}`} title="Downloaded songs and lineups can be opened even without internet.">
+      <Icon size={14} className={`${config.iconClasses || ''} shrink-0`} />
+      <span className="text-wrap-anywhere min-w-0">{config.label}</span>
     </div>
   );
 }

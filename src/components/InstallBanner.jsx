@@ -74,7 +74,7 @@ export default function InstallBanner() {
   if (!isVisible || isStandalone) return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+5.75rem)] z-[100] p-3 animate-slide-up print:hidden sm:bottom-6 sm:left-6 sm:right-auto sm:w-[420px] sm:p-4">
+    <div className="fixed inset-x-0 bottom-[calc(var(--bottom-nav-safe-height)+0.75rem)] z-[100] p-3 animate-slide-up print:hidden sm:bottom-6 sm:left-6 sm:right-auto sm:w-[420px] sm:p-4">
       <div className="mobile-dialog relative mx-auto border border-slate-700 bg-slate-900/90 p-4 shadow-[0_20px_50px_rgba(0,0,0,0.6)] ring-1 ring-white/10 backdrop-blur-2xl sm:rounded-[2rem] sm:p-6">
         {/* Top accent bar */}
         <div className="absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600"></div>

@@ -280,7 +280,7 @@ export default function NotificationBell({
       {mobileNotificationPanel}
 
       {open && (
-        <div className="absolute right-0 top-full z-[1000] mt-2 hidden max-h-[calc(100vh-120px)] w-[min(440px,calc(100vw-24px))] min-w-[360px] max-w-[440px] overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ring-1 ring-white/10 lg:flex lg:flex-col">
+        <div className="absolute right-0 top-full z-[1000] mt-2 hidden max-h-[calc(100dvh-120px)] w-[min(440px,calc(100vw-24px))] min-w-[360px] max-w-[440px] overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ring-1 ring-white/10 lg:flex lg:flex-col">
           <div className="shrink-0 border-b border-slate-800 bg-slate-900/95 p-4 backdrop-blur">
             {panelHeader}
           </div>

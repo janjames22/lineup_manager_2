@@ -53,20 +53,20 @@ export default function OfflineItemButton({
   };
 
   return (
-    <div className={`flex min-w-0 max-w-full flex-wrap items-center gap-2 ${className}`}>
+    <div className={`grid w-full min-w-0 max-w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center ${className}`}>
       {saved && (
-        <span className="inline-flex min-h-9 max-w-full min-w-0 items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-black text-emerald-300">
-          <Check size={14} aria-hidden="true" /> Saved offline
+        <span className="inline-flex min-h-9 w-full max-w-full min-w-0 items-center justify-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-center text-xs font-black text-emerald-300 sm:w-auto">
+          <Check size={14} className="shrink-0" aria-hidden="true" /> Saved offline
         </span>
       )}
       {outdated && (
-        <span className="inline-flex min-h-9 max-w-full min-w-0 items-center break-words rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-black text-amber-200">
+        <span className="text-wrap-anywhere inline-flex min-h-9 w-full max-w-full min-w-0 items-center justify-center rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-center text-xs font-black text-amber-200 sm:w-auto">
           Offline copy may be outdated
         </span>
       )}
       {outdated && (
         <button
-          className="btn-secondary flex-1 !min-h-9 !px-3 !py-1.5 !text-xs sm:flex-none"
+          className="btn-secondary w-full !min-h-9 !px-3 !py-1.5 !text-xs sm:w-auto sm:flex-none"
           type="button"
           disabled={busy}
           onClick={saveOffline}
@@ -76,7 +76,7 @@ export default function OfflineItemButton({
         </button>
       )}
       <button
-        className={`${saved ? 'btn-secondary' : 'btn-primary'} flex-1 !min-h-9 !px-3 !py-1.5 !text-xs sm:flex-none`}
+        className={`${saved ? 'btn-secondary' : 'btn-primary'} w-full !min-h-9 !px-3 !py-1.5 !text-xs sm:w-auto sm:flex-none`}
         type="button"
         disabled={busy}
         onClick={saved ? removeOffline : saveOffline}
