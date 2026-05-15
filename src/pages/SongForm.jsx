@@ -327,10 +327,10 @@ export default function SongForm() {
   }
 
   return (
-    <main className="page-shell">
+    <main className="page-shell song-detail-page">
       <PageHeader eyebrow={id ? 'Edit Song' : 'Add Song'} title={id ? `Update ${song.title}` : 'Add New Song'} />
 
-      <form className="grid gap-6 lg:grid-cols-[1fr_0.75fr]" onSubmit={handleSubmit}>
+      <form className="grid w-full min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.75fr)]" onSubmit={handleSubmit}>
         <section className="panel space-y-5">
           {error && <p className="text-sm font-semibold text-red-700">{error}</p>}
           <div className="grid gap-4 sm:grid-cols-2">
@@ -399,7 +399,7 @@ export default function SongForm() {
         </section>
 
         <aside className="panel h-fit space-y-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="section-title">Lyrics Monitor</h2>
               <p className="text-sm text-slate-600">Use team-approved lyrics, cue text, or placeholders.</p>
@@ -418,7 +418,7 @@ export default function SongForm() {
                 .filter((item) => item.itemIndex !== index);
 
               return (
-                <div key={index} className="rounded-xl border border-slate-800 bg-slate-950 p-3 shadow-inner sm:p-4">
+                <div key={index} className="w-full min-w-0 rounded-xl border border-slate-800 bg-slate-950 p-3 shadow-inner sm:p-4">
                   <div className="mb-3 grid gap-3">
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label>

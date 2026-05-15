@@ -62,7 +62,7 @@ export default function SongDetail() {
   };
 
   return (
-    <main className="page-shell">
+    <main className="page-shell song-detail-page">
       <PageHeader
         eyebrow="Song Detail"
         title={song.title}
@@ -91,19 +91,19 @@ export default function SongDetail() {
           <Info label="Category" value={song.category || '-'} />
           <Info label="Language" value={song.language || '-'} />
         </div>
-        <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-slate-800/50 pt-6">
-          <button className="btn-secondary min-w-10 !text-xl" type="button" onClick={() => setTransposeAmount((value) => Math.max(-12, value - 1))}>-</button>
-          <div className="flex min-w-28 flex-col items-center justify-center rounded-xl bg-slate-950 p-2 ring-1 ring-white/10 shadow-inner sm:min-w-32">
+        <div className="control-row mt-6 border-t border-slate-800/50 pt-6">
+          <button className="btn-secondary min-w-10 flex-1 !text-xl min-[380px]:flex-none" type="button" onClick={() => setTransposeAmount((value) => Math.max(-12, value - 1))}>-</button>
+          <div className="flex min-w-24 flex-1 flex-col items-center justify-center rounded-xl bg-slate-950 p-2 ring-1 ring-white/10 shadow-inner min-[380px]:flex-none sm:min-w-32">
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Transpose</span>
             <span className="text-xl font-black text-white">{transposeAmount > 0 ? `+${transposeAmount}` : transposeAmount}</span>
           </div>
-          <button className="btn-secondary min-w-10 !text-xl" type="button" onClick={() => setTransposeAmount((value) => Math.min(12, value + 1))}>+</button>
-          <button className="btn-secondary ml-2 font-black uppercase tracking-wider text-xs" type="button" onClick={() => setTransposeAmount(0)}>Reset</button>
+          <button className="btn-secondary min-w-10 flex-1 !text-xl min-[380px]:flex-none" type="button" onClick={() => setTransposeAmount((value) => Math.min(12, value + 1))}>+</button>
+          <button className="btn-secondary flex-1 basis-full font-black uppercase tracking-wider text-xs min-[380px]:basis-auto" type="button" onClick={() => setTransposeAmount(0)}>Reset</button>
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[1fr_0.65fr]">
-        <div className="panel">
+      <section className="grid w-full min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.65fr)]">
+        <div className="panel w-full">
           <h2 className="section-title">Chord Chart</h2>
           <ChordChartViewer
             className="mt-5"

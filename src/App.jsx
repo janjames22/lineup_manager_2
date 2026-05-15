@@ -495,7 +495,7 @@ export default function App() {
   };
 
   return (
-    <div className={`min-h-dvh w-full max-w-full overflow-x-hidden bg-slate-950 text-slate-100 selection:bg-blue-500/30 ${showAppChrome ? 'pb-24 lg:pb-0' : ''}`}>
+    <div className={`app-shell ${showAppChrome ? 'pb-28 lg:pb-0' : ''}`}>
       {showAppChrome && (
         <Navbar
           onShareApp={() => setShareQrOpen(true)}

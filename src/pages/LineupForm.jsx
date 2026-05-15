@@ -138,9 +138,9 @@ export default function LineupForm() {
   }
 
   return (
-    <main className="page-shell">
+    <main className="page-shell lineup-page">
       <PageHeader eyebrow={id ? 'Edit Lineup' : 'Create Lineup'} title={id ? 'Update Sunday Lineup' : 'Create Sunday Lineup'} />
-      <form className="space-y-6" onSubmit={save}>
+      <form className="w-full min-w-0 space-y-6" onSubmit={save}>
         {error && <p className="text-sm font-semibold text-red-700">{error}</p>}
         <section className="panel">
           <h2 className="section-title">Service Details</h2>
@@ -153,7 +153,7 @@ export default function LineupForm() {
 
         <section className="panel">
           <h2 className="section-title">Song Order</h2>
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-4 flex w-full min-w-0 flex-col gap-3 sm:flex-row">
             <select className="input" value={selectedSongId} onChange={(event) => setSelectedSongId(event.target.value)}>
               <option value="">Select a song</option>
               {availableSongs.map((song) => <option key={song.id} value={song.id}>{song.title} - {song.originalKey}</option>)}
@@ -163,9 +163,9 @@ export default function LineupForm() {
 
           <div className="mt-5 space-y-3">
             {lineup.songs.map((song, index) => (
-              <div key={`${song.id || song.songId}-${index}`} className="rounded-xl border border-slate-800 bg-slate-950 p-4 shadow-inner">
+              <div key={`${song.id || song.songId}-${index}`} className="w-full min-w-0 rounded-xl border border-slate-800 bg-slate-950 p-3 shadow-inner sm:p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                  <h3 className="font-bold text-white">{index + 1}. {song.title}</h3>
+                  <h3 className="min-w-0 break-words font-bold text-white">{index + 1}. {song.title}</h3>
                   <div className="flex flex-wrap gap-2">
                     <button className="icon-button" type="button" onClick={() => moveSong(index, -1)} title="Move up"><ArrowUp size={18} aria-hidden="true" /></button>
                     <button className="icon-button" type="button" onClick={() => moveSong(index, 1)} title="Move down"><ArrowDown size={18} aria-hidden="true" /></button>

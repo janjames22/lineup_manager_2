@@ -34,7 +34,7 @@ export default function SongLibrary() {
   if (loading) return <LoadingScreen />;
 
   return (
-    <main className="page-shell">
+    <main className="page-shell song-library-page">
       <PageHeader
         eyebrow="Song Library"
         title="Chord Charts"
@@ -50,7 +50,7 @@ export default function SongLibrary() {
       {error && <p className="mb-4 text-sm font-semibold text-red-300">{error}</p>}
 
       <section className="panel mb-6">
-        <div className="grid gap-3 md:grid-cols-[1.5fr_0.7fr_0.7fr_0.7fr]">
+        <div className="grid w-full min-w-0 gap-3 md:grid-cols-[minmax(0,1.5fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.7fr)]">
           <label className="relative block">
             <span className="sr-only">Search songs</span>
             <Search className="pointer-events-none absolute left-3 top-3 text-blue-400" size={18} aria-hidden="true" />
@@ -72,7 +72,7 @@ export default function SongLibrary() {
       </section>
 
       {filteredSongs.length ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid w-full min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filteredSongs.map((song) => <SongCard key={song.id} song={song} offline={offlineSongs} />)}
         </div>
       ) : (

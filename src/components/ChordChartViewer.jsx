@@ -72,12 +72,12 @@ export default function ChordChartViewer({
   const chartText = String(chordChart || '').trimEnd() || emptyText;
 
   return (
-    <div className={`max-w-full min-w-0 ${className}`}>
+    <div className={`chord-sheet-container ${className}`}>
       {showControls && (
-        <div className="mb-3 flex max-w-full flex-wrap items-center gap-2 print:hidden">
-          <div className="flex items-center gap-1 rounded-xl border border-slate-800/60 bg-slate-950/50 p-1.5 shadow-inner">
+        <div className="chord-controls">
+          <div className="flex min-w-0 items-center gap-1 rounded-xl border border-slate-800/60 bg-slate-950/50 p-1.5 shadow-inner">
             <button
-              className="min-h-11 rounded-lg px-3 text-sm font-black text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="min-h-11 flex-1 rounded-lg px-3 text-sm font-black text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               type="button"
               onClick={() => saveFontSize(fontSize - 1)}
               aria-label="Decrease chord chart font size"
@@ -85,7 +85,7 @@ export default function ChordChartViewer({
               A−
             </button>
             <button
-              className="min-h-11 rounded-lg px-3 text-sm font-black text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="min-h-11 flex-1 rounded-lg px-3 text-sm font-black text-slate-200 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               type="button"
               onClick={() => saveFontSize(fontSize + 1)}
               aria-label="Increase chord chart font size"
@@ -93,7 +93,7 @@ export default function ChordChartViewer({
               A+
             </button>
           </div>
-          <label className="flex min-h-11 min-w-0 flex-1 basis-40 items-center gap-3 rounded-xl border border-slate-800/60 bg-slate-950/50 px-3 text-xs font-bold uppercase tracking-wider text-slate-400 shadow-inner sm:max-w-xs">
+          <label className="chord-size-slider flex min-h-11 min-w-0 flex-1 basis-40 items-center gap-3 rounded-xl border border-slate-800/60 bg-slate-950/50 px-3 text-xs font-bold uppercase tracking-wider text-slate-400 shadow-inner sm:max-w-xs">
             <span className="shrink-0">Size</span>
             <input
               className="min-w-0 flex-1 accent-blue-500"

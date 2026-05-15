@@ -91,7 +91,7 @@ export default function LyricsMonitorPage() {
       sections={monitorData.sections}
       index={index}
       onIndexChange={setIndex}
-      backAction={<Link className="btn-dark" to={monitorData.backTo}><ArrowLeft size={18} aria-hidden="true" /> Back</Link>}
+      backAction={<Link className="btn-dark w-full sm:w-auto" to={monitorData.backTo}><ArrowLeft size={18} aria-hidden="true" /> Back</Link>}
     />
   );
 }

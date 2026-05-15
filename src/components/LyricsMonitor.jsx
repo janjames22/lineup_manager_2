@@ -59,38 +59,38 @@ export default function LyricsMonitor({ title, keyName, sections, index, onIndex
   const toggleTheme = () => setThemeIndex((prev) => (prev + 1) % themes.length);
 
   return (
-    <main className={`flex min-h-dvh flex-col transition-colors duration-700 ease-in-out ${activeTheme.classes}`}>
+    <main className={`flex min-h-dvh w-full max-w-full min-w-0 flex-col overflow-x-hidden transition-colors duration-700 ease-in-out ${activeTheme.classes}`}>
       <div
-        className="flex min-w-0 flex-col gap-3 border-b border-white/10 px-4 pb-4 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 print:hidden"
+        className="flex w-full min-w-0 flex-col gap-3 border-b border-white/10 px-3 pb-4 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 print:hidden"
         style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top, 0px))' }}
       >
         <div className="min-w-0">
           <p className={`text-sm font-medium tracking-wider opacity-90 ${activeTheme.labelClasses}`}>{keyName ? `KEY: ${keyName}` : 'LYRICS MONITOR'}</p>
           <h1 className="break-words text-2xl font-bold tracking-tight">{title}</h1>
         </div>
-        <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-          <select className="input max-w-full bg-white/10 border-white/20 text-white [&>option]:text-slate-900 focus:bg-white/20 transition-colors sm:max-w-xs" value={currentIndex} onChange={(event) => onIndexChange(Number(event.target.value))}>
+        <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
+          <select className="input col-span-2 max-w-full bg-white/10 border-white/20 text-white transition-colors focus:bg-white/20 sm:max-w-xs [&>option]:text-slate-900" value={currentIndex} onChange={(event) => onIndexChange(Number(event.target.value))}>
             {safeSections.map((section, sectionIndex) => (
               <option key={`${section.section}-${sectionIndex}`} value={sectionIndex}>
                 {section.section || `Section ${sectionIndex + 1}`}
               </option>
             ))}
           </select>
-          <button className="btn-dark" type="button" onClick={toggleTheme} title="Change Theme">
+          <button className="btn-dark w-full sm:w-auto" type="button" onClick={toggleTheme} title="Change Theme">
             <Palette size={18} aria-hidden="true" /> Theme
           </button>
-          <button className="btn-dark" type="button" onClick={toggleFullscreen} title="Fullscreen">
+          <button className="btn-dark w-full sm:w-auto" type="button" onClick={toggleFullscreen} title="Fullscreen">
             <Maximize size={18} aria-hidden="true" /> Fullscreen
           </button>
           {backAction}
         </div>
       </div>
 
-      <section className="relative grid min-w-0 flex-1 place-items-center overflow-hidden px-4 py-8 text-center sm:py-10">
+      <section className="relative grid min-w-0 flex-1 place-items-center overflow-hidden px-3 py-8 text-center sm:px-4 sm:py-10">
         <div className={`pointer-events-none absolute inset-0 transition-opacity duration-700 ${activeTheme.glowClasses}`} aria-hidden="true" />
         <div key={currentIndex} className="relative z-10 w-full max-w-6xl min-w-0 animate-fade-in">
           <p className={`mb-6 break-words text-lg font-bold uppercase tracking-wider opacity-90 drop-shadow-md sm:mb-8 sm:text-xl sm:tracking-[0.2em] ${activeTheme.labelClasses}`}>{current.section}</p>
-          <pre className="max-w-full whitespace-pre-wrap break-words font-sans text-3xl font-bold leading-[1.25] text-white drop-shadow-lg sm:text-4xl md:text-5xl lg:text-[4rem] lg:leading-[1.3]">{current.text || 'No cue text for this section.'}</pre>
+          <pre className="max-w-full whitespace-pre-wrap break-words font-sans text-[clamp(1.75rem,9vw,3rem)] font-bold leading-[1.25] text-white drop-shadow-lg md:text-5xl lg:text-[4rem] lg:leading-[1.3]">{current.text || 'No cue text for this section.'}</pre>
           {current.vocalNotes && <p className={`mt-8 break-words text-xl font-medium drop-shadow-md sm:mt-12 sm:text-2xl ${activeTheme.notesClasses}`}>{current.vocalNotes}</p>}
           {current.repeatCount && <p className={`mt-4 break-words text-lg font-medium drop-shadow-md sm:text-xl ${activeTheme.repeatClasses}`}>Repeat: {current.repeatCount}</p>}
         </div>

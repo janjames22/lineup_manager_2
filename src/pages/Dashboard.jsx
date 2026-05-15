@@ -25,7 +25,7 @@ export default function Dashboard({ onShareApp }) {
   const recentSongs = songs.slice(0, 3);
 
   return (
-    <main className="page-shell">
+    <main className="page-shell dashboard-page">
       <PageHeader
         eyebrow="Dashboard"
         title="Prepare Sunday with one clear workspace"
@@ -42,29 +42,29 @@ export default function Dashboard({ onShareApp }) {
         }
       />
 
-      <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="panel">
-          <div className="mb-6 flex min-w-0 items-center justify-between gap-3">
+      <section className="grid w-full min-w-0 gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+        <div className="panel w-full">
+          <div className="mb-6 flex min-w-0 flex-wrap items-center justify-between gap-3">
             <h2 className="section-title">Upcoming Sunday Lineup</h2>
             <Link to="/lineups" className="shrink-0 text-sm font-bold text-blue-400 hover:text-blue-300 transition-colors">View all</Link>
           </div>
           {upcoming ? (
             <div className="space-y-5">
-              <div className="rounded-2xl bg-gradient-to-br from-blue-900/30 to-indigo-900/10 p-6 border border-blue-500/20 shadow-inner">
+              <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-900/30 to-indigo-900/10 p-4 shadow-inner sm:p-6">
                 <p className="text-[10px] font-black uppercase tracking-widest text-blue-400">{upcoming.date} • {upcoming.serviceTime}</p>
-                <h3 className="mt-1 text-2xl font-black text-white">{upcoming.worshipLeader || 'Worship Leader TBD'}</h3>
+                <h3 className="mt-1 break-words text-xl font-black text-white sm:text-2xl">{upcoming.worshipLeader || 'Worship Leader TBD'}</h3>
               </div>
               <ol className="space-y-3">
                 {upcoming.songs.map((song, index) => (
-                  <li key={`${song.id || song.songId}-${index}`} className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4 transition hover:bg-slate-800/60 hover:border-slate-700">
+                  <li key={`${song.id || song.songId}-${index}`} className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3 transition hover:border-slate-700 hover:bg-slate-800/60 sm:p-4">
                     <span className="min-w-0 break-words font-bold text-slate-200">{index + 1}. {song.title}</span>
                     <span className="shrink-0 rounded-lg bg-amber-950/40 px-3 py-1 text-xs font-black text-amber-400 shadow-sm border border-amber-900/50">{song.selectedKey}</span>
                   </li>
                 ))}
               </ol>
-              <div className="mt-2 flex flex-wrap gap-3">
-                <Link className="btn-primary flex-1 sm:flex-none" to={`/lineups/${upcoming.id}`}>Open Lineup</Link>
-                <Link className="btn-secondary flex-1 sm:flex-none" to={`/lineups/${upcoming.id}/monitor`}>
+              <div className="grid w-full min-w-0 grid-cols-1 gap-2 min-[380px]:grid-cols-2 sm:flex sm:flex-wrap sm:gap-3">
+                <Link className="btn-primary w-full sm:w-auto" to={`/lineups/${upcoming.id}`}>Open Lineup</Link>
+                <Link className="btn-secondary w-full sm:w-auto" to={`/lineups/${upcoming.id}/monitor`}>
                   <Monitor size={18} aria-hidden="true" /> Monitor
                 </Link>
               </div>
@@ -77,7 +77,7 @@ export default function Dashboard({ onShareApp }) {
           )}
         </div>
 
-        <div className="panel h-fit">
+        <div className="panel h-fit w-full">
           <h2 className="section-title mb-6">Quick Actions</h2>
           <div className="grid gap-3">
             <Link className="quick-action" to="/songs">
@@ -113,11 +113,11 @@ export default function Dashboard({ onShareApp }) {
       </section>
 
       <section className="mt-12">
-        <div className="mb-6 flex min-w-0 items-center justify-between gap-3">
+        <div className="mb-6 flex min-w-0 flex-wrap items-center justify-between gap-3">
           <h2 className="section-title">Recently Added Songs</h2>
           <Link to="/songs" className="shrink-0 text-sm font-black text-blue-400 hover:text-blue-300">Open library</Link>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid w-full min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {recentSongs.map((song) => <SongCard key={song.id} song={song} offline={offlineSongs} />)}
         </div>
       </section>

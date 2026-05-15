@@ -57,20 +57,20 @@ export default function PrintExportView() {
   }
 
   return (
-    <main className="print-sheet mx-auto w-full max-w-5xl bg-white px-4 py-8 text-slate-900 sm:px-6 lg:px-8">
-      <div className="mb-6 flex flex-wrap gap-2 print:hidden">
-        <Link className="btn-secondary" to={`/lineups/${lineup.id}`}><ArrowLeft size={18} aria-hidden="true" /> Back</Link>
-        <button className="btn-primary" type="button" onClick={() => window.print()}><Printer size={18} aria-hidden="true" /> Print / Export</button>
+    <main className="print-sheet mx-auto w-full max-w-5xl min-w-0 overflow-x-hidden bg-white px-3 py-6 text-slate-900 sm:px-6 sm:py-8 lg:px-8">
+      <div className="mb-6 grid w-full min-w-0 grid-cols-1 gap-2 print:hidden min-[380px]:grid-cols-2 sm:flex sm:flex-wrap">
+        <Link className="btn-secondary w-full sm:w-auto" to={`/lineups/${lineup.id}`}><ArrowLeft size={18} aria-hidden="true" /> Back</Link>
+        <button className="btn-primary w-full sm:w-auto" type="button" onClick={() => window.print()}><Printer size={18} aria-hidden="true" /> Print / Export</button>
       </div>
 
       <header className="print-block print-divider border-b border-slate-300 pb-5">
         <p className="print-accent text-sm font-semibold text-blue-700">Sunday Lineup</p>
-        <h1 className="text-3xl font-bold text-slate-950">{lineup.date} • {lineup.serviceTime}</h1>
+        <h1 className="break-words text-2xl font-bold text-slate-950 sm:text-3xl">{lineup.date} • {lineup.serviceTime}</h1>
         <p className="print-muted mt-2 text-slate-700">Worship Leader: {lineup.worshipLeader || 'TBD'}</p>
       </header>
 
       <section className="mt-6">
-        <h2 className="print-accent text-2xl font-bold tracking-tight text-slate-950">Song Lineup</h2>
+        <h2 className="print-accent text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Song Lineup</h2>
         <div className="mt-4 space-y-6">
           {lineup.songs.map((lineupSong, index) => {
             const embeddedSong = lineupSong.song || (lineupSong.chordChart ? lineupSong : null);
