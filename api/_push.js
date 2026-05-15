@@ -1,6 +1,6 @@
 /* global process */
 import { createClient } from '@supabase/supabase-js';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import webPush from 'web-push';
 
 export const MISSING_COLUMN_CODES = new Set(['42P01', '42703', 'PGRST204', 'PGRST205']);
@@ -197,10 +197,30 @@ export function normalizeSubscription(body = {}, request) {
   const requestedServiceWorkerVersion = firstTextValue(
     body.service_worker_version,
     body.serviceWorkerVersion,
+    body.sw_version,
+    body.swVersion,
     source.service_worker_version,
     source.serviceWorkerVersion,
+    source.sw_version,
+    source.swVersion,
     metadata.service_worker_version,
-    metadata.serviceWorkerVersion
+    metadata.serviceWorkerVersion,
+    metadata.sw_version,
+    metadata.swVersion
+  );
+  const requestedTimezone = firstTextValue(
+    body.timezone,
+    source.timezone,
+    metadata.timezone,
+    device.timezone
+  );
+  const requestedNotificationPermission = firstTextValue(
+    body.notification_permission,
+    body.notificationPermission,
+    source.notification_permission,
+    source.notificationPermission,
+    metadata.notification_permission,
+    metadata.notificationPermission
   );
   const deviceId = requestedDeviceId || (endpoint ? createFallbackDeviceId(endpoint, userAgent || '') : null);
   const platform = detectPlatformFromUserAgent(userAgent || '', requestedPlatform || '');
@@ -227,6 +247,9 @@ export function normalizeSubscription(body = {}, request) {
     platform,
     app_version: appVersion,
     service_worker_version: serviceWorkerVersion,
+    sw_version: serviceWorkerVersion,
+    timezone: requestedTimezone,
+    notification_permission: requestedNotificationPermission,
     metadata_source: {
       device_id: requestedDeviceId ? 'client' : 'server-fallback',
       platform: requestedPlatform ? 'client' : 'server-fallback',
@@ -243,7 +266,7 @@ export function getPushSubscriptionMetadataStatus(row = {}) {
   if (!row?.platform) missing.push('platform');
   if (!row?.user_agent) missing.push('user_agent');
   if (!row?.app_version) missing.push('app_version');
-  if (!row?.service_worker_version) missing.push('service_worker_version');
+  if (!row?.service_worker_version && !row?.sw_version) missing.push('service_worker_version');
 
   return {
     saved: missing.length === 0,
@@ -271,7 +294,7 @@ export function assertPushSubscriptionMetadataSaved(row = {}, subscription = {})
       device_id: row?.device_id || '',
       platform: row?.platform || '',
       app_version: row?.app_version || '',
-      service_worker_version: row?.service_worker_version || '',
+      service_worker_version: row?.service_worker_version || row?.sw_version || '',
       user_agent_saved: Boolean(row?.user_agent),
     },
   };
@@ -314,34 +337,28 @@ export function validatePushSubscriptionMetadata(subscription = {}) {
   const platform = String(subscription.platform || '');
   const userAgent = String(subscription.user_agent || '');
   const appVersion = String(subscription.app_version || '');
-  const serviceWorkerVersion = String(subscription.service_worker_version || '');
-
-  if (!deviceId) {
-    return 'Missing push subscription device_id.';
-  }
+  const serviceWorkerVersion = String(subscription.service_worker_version || subscription.sw_version || '');
+  const timezone = String(subscription.timezone || '');
+  const notificationPermission = String(subscription.notification_permission || '');
 
   if (deviceId.length > 200) {
     return 'Push subscription device_id is too long.';
   }
 
-  if (!platform) {
-    return 'Missing push subscription platform.';
-  }
-
-  if (!PUSH_PLATFORM_VALUES.has(platform)) {
+  if (platform && !PUSH_PLATFORM_VALUES.has(platform)) {
     return 'Push subscription platform is invalid.';
   }
 
-  if (!userAgent) {
-    return 'Missing push subscription user_agent.';
+  if (userAgent.length > 1000) {
+    return 'Push subscription user_agent is too long.';
   }
 
-  if (!appVersion) {
-    return 'Missing push subscription app_version.';
+  if (timezone.length > 100) {
+    return 'Push subscription timezone is too long.';
   }
 
-  if (!serviceWorkerVersion) {
-    return 'Missing push subscription service_worker_version.';
+  if (notificationPermission.length > 40) {
+    return 'Push subscription notification_permission is too long.';
   }
 
   if (appVersion.length > 200 || serviceWorkerVersion.length > 200) {
@@ -363,6 +380,9 @@ export async function upsertPushSubscription(supabase, subscription, { selectRes
     device_label: subscription.device_label || null,
     app_version: subscription.app_version,
     service_worker_version: subscription.service_worker_version,
+    sw_version: subscription.sw_version || subscription.service_worker_version,
+    timezone: subscription.timezone || null,
+    notification_permission: subscription.notification_permission || null,
     is_active: true,
     last_seen_at: now,
     updated_at: now,
@@ -394,7 +414,7 @@ export async function upsertPushSubscription(supabase, subscription, { selectRes
       platform: rpcResult.data?.platform || '',
       hasUserAgent: Boolean(rpcResult.data?.user_agent),
       appVersion: rpcResult.data?.app_version || '',
-      serviceWorkerVersion: rpcResult.data?.service_worker_version || '',
+      serviceWorkerVersion: rpcResult.data?.service_worker_version || rpcResult.data?.sw_version || '',
       updatedAt: rpcResult.data?.updated_at || now,
       metadata: getPushSubscriptionMetadataStatus(rpcResult.data),
     });
@@ -469,6 +489,9 @@ export async function upsertPushSubscription(supabase, subscription, { selectRes
       user_agent: subscription.user_agent,
       app_version: subscription.app_version,
       service_worker_version: subscription.service_worker_version,
+      sw_version: subscription.sw_version || subscription.service_worker_version,
+      timezone: subscription.timezone || null,
+      notification_permission: subscription.notification_permission || null,
       is_active: true,
       last_seen_at: now,
       updated_at: now,
@@ -480,7 +503,7 @@ export async function upsertPushSubscription(supabase, subscription, { selectRes
     .from('push_subscriptions')
     .update(updateRecord)
     .eq('endpoint', endpoint)
-    .select('endpoint,device_id,platform,user_agent,app_version,service_worker_version,is_active,last_seen_at,updated_at')
+    .select('endpoint,device_id,platform,user_agent,app_version,service_worker_version,sw_version,timezone,notification_permission,is_active,last_seen_at,updated_at')
     .single();
 
   if (updateResult.error) {
@@ -508,7 +531,7 @@ export async function upsertPushSubscription(supabase, subscription, { selectRes
     platform: updateResult.data?.platform || '',
     hasUserAgent: Boolean(updateResult.data?.user_agent),
     appVersion: updateResult.data?.app_version || '',
-    serviceWorkerVersion: updateResult.data?.service_worker_version || '',
+      serviceWorkerVersion: updateResult.data?.service_worker_version || updateResult.data?.sw_version || '',
     updatedAt: updateResult.data?.updated_at || now,
     metadata: getPushSubscriptionMetadataStatus(updateResult.data),
   });
@@ -531,7 +554,7 @@ export async function verifyPushSubscriptionSaved(supabase, endpoint) {
       platform: rpcResult.data?.platform || '',
       hasUserAgent: Boolean(rpcResult.data?.user_agent),
       appVersion: rpcResult.data?.app_version || '',
-      serviceWorkerVersion: rpcResult.data?.service_worker_version || '',
+      serviceWorkerVersion: rpcResult.data?.service_worker_version || rpcResult.data?.sw_version || '',
       updatedAt: rpcResult.data?.updated_at || null,
       metadata: getPushSubscriptionMetadataStatus(rpcResult.data),
     });
@@ -554,7 +577,7 @@ export async function verifyPushSubscriptionSaved(supabase, endpoint) {
 
   const { data, error } = await supabase
     .from('push_subscriptions')
-    .select('endpoint,is_active,last_seen_at,updated_at,device_id,platform,user_agent,app_version,service_worker_version')
+    .select('endpoint,is_active,last_seen_at,updated_at,device_id,platform,user_agent,app_version,service_worker_version,sw_version,timezone,notification_permission')
     .eq('endpoint', endpoint)
     .maybeSingle();
 
@@ -574,7 +597,7 @@ export async function verifyPushSubscriptionSaved(supabase, endpoint) {
     platform: data?.platform || '',
     hasUserAgent: Boolean(data?.user_agent),
     appVersion: data?.app_version || '',
-    serviceWorkerVersion: data?.service_worker_version || '',
+    serviceWorkerVersion: data?.service_worker_version || data?.sw_version || '',
     updatedAt: data?.updated_at || null,
     metadata: getPushSubscriptionMetadataStatus(data),
   });
@@ -675,18 +698,39 @@ export async function loadPushSubscriptions(supabase, { excludeEndpoint = '', ta
 
 export function formatLineupBody(lineup = {}) {
   const schedule = [lineup.date, lineup.service_time].filter(Boolean).join(' · ');
-  return schedule || 'New lineup added';
+  const title = lineup.title || lineup.name || lineup.lineup_title || '';
+  const leader = lineup.worship_leader ? `Worship Leader: ${lineup.worship_leader}` : '';
+  return [title, schedule, leader].filter(Boolean).join(' · ') || 'Tap to open the latest lineup.';
 }
 
-export function createPushPayload({ title, body, url, tag, lineupId, timestamp }) {
+export function createPushPayload({
+  type,
+  title,
+  body,
+  url,
+  tag,
+  lineupId,
+  timestamp,
+  notificationId,
+  createdAt,
+  renotify = true,
+}) {
+  const createdTimestamp = createdAt || timestamp || new Date().toISOString();
+  const resolvedType = type || (lineupId ? 'lineup' : 'test');
+  const resolvedNotificationId = notificationId || randomUUID();
+
   return JSON.stringify({
-    type: lineupId ? 'lineup_created' : 'test',
+    type: resolvedType,
+    notificationId: resolvedNotificationId,
+    id: resolvedNotificationId,
     title: title || 'Line Up Manager',
     body: body || 'New notification',
-    url: url || (lineupId ? `/lineups/${lineupId}` : '/lineups'),
+    url: url || (lineupId ? `/lineups/${lineupId}` : '/'),
     tag: tag || (lineupId ? `lineup-${lineupId}` : 'lineup-manager'),
+    renotify,
     lineupId: lineupId || null,
-    timestamp: timestamp || new Date().toISOString(),
+    createdAt: createdTimestamp,
+    timestamp: createdTimestamp,
     icon: '/icon-192.png',
     badge: '/icon-192.png',
   });
@@ -725,7 +769,7 @@ export async function createLineupNotificationRecords(supabase, payload, subscri
   const existing = await supabase
     .from('lineup_notifications')
     .select('id')
-    .eq('type', 'lineup_created')
+    .eq('type', notification.type || 'lineup')
     .eq('lineup_id', lineupId)
     .maybeSingle();
 
@@ -737,7 +781,7 @@ export async function createLineupNotificationRecords(supabase, payload, subscri
   }
 
   const record = {
-    type: notification.type || 'lineup_created',
+    type: notification.type || 'lineup',
     lineup_id: lineupId,
     title: notification.title || 'New lineup added',
     body: notification.body || 'A new worship lineup has been posted.',
@@ -904,6 +948,8 @@ export async function sendPushPayloadToSubscriptions(supabase, payload, subscrip
     successCount,
     failureCount,
     expiredRemovedCount,
+    attempted: totalSubscriptions,
+    inactiveMarked: expiredRemovedCount,
     total: totalSubscriptions,
     sent: successCount,
     failed: failureCount,

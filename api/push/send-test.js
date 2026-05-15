@@ -16,9 +16,10 @@ export default async function handler(request, response) {
   const supabase = getSupabaseAdmin();
   const targetEndpoint = body.targetEndpoint || body.endpoint || '';
   const payload = createPushPayload({
-    title: body.title || 'Line Up Manager',
-    body: body.body || 'Test phone notification',
-    url: body.url || '/lineups',
+    type: 'test',
+    title: body.title || 'CCFBC Line Up Test',
+    body: body.body || 'Push notifications are working on this device.',
+    url: body.url || '/',
     tag: body.tag || 'lineup-manager-test',
     timestamp: new Date().toISOString(),
   });

@@ -31,11 +31,12 @@ function debugLineupNotifications(message, details) {
 
 export default function useLineupNotifications() {
   const [notifications, setNotifications] = useState(readStoredLineupNotifications);
+  const [bannerNotification, setBannerNotification] = useState(null);
   const [soundEnabled, setSoundEnabledState] = useState(readNotificationSoundEnabled);
   const channelRef = useRef(null);
   const showToastErrorRef = useRef(false);
   const showToastRef = useRef(() => {});
-  const notifiedLineupIdsRef = useRef(new Set(readStoredLineupNotifications().map((notification) => notification?.lineupId).filter(Boolean)));
+  const notifiedNotificationIdsRef = useRef(new Set(readStoredLineupNotifications().map((notification) => notification?.id).filter(Boolean)));
   const soundEnabledRef = useRef(soundEnabled);
   const { showToast } = useToast();
 
@@ -53,10 +54,45 @@ export default function useLineupNotifications() {
       const next = typeof updater === 'function' ? updater(current) : updater;
       debugLineupNotifications('notification list after update', next);
       storeLineupNotifications(next);
-      notifiedLineupIdsRef.current = new Set(next.map((notification) => notification?.lineupId).filter(Boolean));
+      notifiedNotificationIdsRef.current = new Set(next.map((notification) => notification?.id).filter(Boolean));
       return next;
     });
   }, []);
+
+  const addNotification = useCallback((notification, options = {}) => {
+    const {
+      showBanner = true,
+      showToastMessage = true,
+      playSound = true,
+    } = options;
+
+    if (!notification?.id || !notification?.lineupId) return false;
+    if (notifiedNotificationIdsRef.current.has(notification.id)) {
+      debugLineupNotifications('notification skipped because id already exists', notification.id);
+      return false;
+    }
+
+    notifiedNotificationIdsRef.current.add(notification.id);
+    updateNotifications((current) => {
+      const existingIds = new Set(current.map((item) => item.id).filter(Boolean));
+      if (existingIds.has(notification.id)) return current;
+      return [notification, ...current];
+    });
+
+    if (showBanner) setBannerNotification(notification);
+    if (showToastMessage) showToastRef.current(notification.message || notification.title, 'info', 6000);
+
+    if (playSound && soundEnabledRef.current) {
+      playNotificationSound().catch((error) => {
+        console.warn('[LineupNotifications] failed to play notification sound:', error);
+        if (error?.name === 'NotAllowedError') {
+          showToastRef.current('Tap once in the app to enable notification sounds.', 'info', 5000);
+        }
+      });
+    }
+
+    return true;
+  }, [updateNotifications]);
 
   useEffect(() => {
     const unreadCount = notifications.filter((notification) => !notification.read).length;
@@ -87,10 +123,7 @@ export default function useLineupNotifications() {
 
       updateNotifications((current) => {
         const existingIds = new Set(current.map((notification) => notification.id).filter(Boolean));
-        const existingLineupIds = new Set(current.map((notification) => notification.lineupId).filter(Boolean));
-        const nextImports = importedNotifications.filter((notification) => (
-          !existingIds.has(notification.id) && !existingLineupIds.has(notification.lineupId)
-        ));
+        const nextImports = importedNotifications.filter((notification) => !existingIds.has(notification.id));
 
         if (!nextImports.length) return current;
         return [...nextImports, ...current];
@@ -124,8 +157,8 @@ export default function useLineupNotifications() {
     setSoundEnabledState(Boolean(enabled));
   }, []);
 
-  const handleNewLineup = useCallback((lineupRow, eventType = 'UNKNOWN') => {
-    debugLineupNotifications('handleNewLineup called', { eventType, lineupRow });
+  const handleLineupChange = useCallback((lineupRow, eventType = 'UNKNOWN') => {
+    debugLineupNotifications('handleLineupChange called', { eventType, lineupRow });
 
     if (!lineupRow || typeof lineupRow !== 'object') {
       console.warn('[LineupNotifications] Skipping notification because lineup row is missing or invalid.');
@@ -133,37 +166,27 @@ export default function useLineupNotifications() {
     }
 
     if (consumeLocalLineupCreation(lineupRow)) {
-      debugLineupNotifications('skipping notification because this browser tab created the lineup', lineupRow);
+      debugLineupNotifications('skipping notification because this browser tab saved the lineup', lineupRow);
       return;
     }
 
-    const notification = createLineupNotification(lineupRow);
+    const notification = createLineupNotification(lineupRow, eventType);
     if (!notification?.lineupId) {
       console.warn('[LineupNotifications] Skipping notification because lineupId is missing.', lineupRow);
       return;
     }
 
-    if (notifiedLineupIdsRef.current.has(notification.lineupId)) {
-      debugLineupNotifications('notification list update skipped because lineupId already exists', notification.lineupId);
-      return;
-    }
-
     debugLineupNotifications('created notification', notification);
-    notifiedLineupIdsRef.current.add(notification.lineupId);
+    addNotification(notification);
+  }, [addNotification]);
 
-    updateNotifications((current) => {
-      return [notification, ...current];
-    });
+  const receivePushNotification = useCallback((pushNotification = {}) => {
+    const notification = createLineupNotificationFromPush(pushNotification);
+    if (!notification) return false;
 
-    debugLineupNotifications('triggering toast for notification', notification.message);
-    showToastRef.current(notification.message, 'info', 6000);
-
-    if (soundEnabledRef.current) {
-      playNotificationSound().catch((error) => {
-        console.warn('[LineupNotifications] failed to play notification sound:', error);
-      });
-    }
-  }, [updateNotifications]);
+    debugLineupNotifications('foreground push notification received', notification);
+    return addNotification(notification);
+  }, [addNotification]);
 
   useEffect(() => {
     debugLineupNotifications('mounting subscription');
@@ -193,12 +216,12 @@ export default function useLineupNotifications() {
           debugLineupNotifications('new row', payload.new);
           debugLineupNotifications('old row', payload.old);
 
-          if (payload.eventType === 'INSERT') {
-            handleNewLineup(payload.new, payload.eventType);
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            handleLineupChange(payload.new, payload.eventType);
             return;
           }
 
-          debugLineupNotifications('realtime event ignored because it is not INSERT');
+          debugLineupNotifications('realtime event ignored because it is not INSERT or UPDATE');
         }
       )
       .subscribe((status) => {
@@ -222,7 +245,11 @@ export default function useLineupNotifications() {
         channelRef.current = null;
       }
     };
-  }, [handleNewLineup]);
+  }, [handleLineupChange]);
+
+  const dismissBannerNotification = useCallback(() => {
+    setBannerNotification(null);
+  }, []);
 
   return {
     notifications,
@@ -230,6 +257,9 @@ export default function useLineupNotifications() {
     markAllRead,
     markNotificationRead,
     clearNotification,
+    bannerNotification,
+    dismissBannerNotification,
+    receivePushNotification,
     soundEnabled,
     setSoundEnabled,
   };

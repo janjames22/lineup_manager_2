@@ -31,9 +31,11 @@ function formatEndpoint(endpoint) {
 function normalizePushSummary(result = {}) {
   return {
     totalSubscriptions: result.totalSubscriptions ?? result.total ?? 0,
+    attempted: result.attempted ?? result.totalSubscriptions ?? result.total ?? 0,
     successCount: result.successCount ?? result.sent ?? 0,
     failureCount: result.failureCount ?? result.failed ?? 0,
     expiredRemovedCount: result.expiredRemovedCount ?? result.expired ?? 0,
+    inactiveMarked: result.inactiveMarked ?? result.expiredRemovedCount ?? result.expired ?? 0,
     deliveryLogs: result.deliveryLogs ?? 0,
   };
 }
@@ -59,6 +61,7 @@ export default function PhoneNotificationsButton() {
   const [diagnosticBusy, setDiagnosticBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [lastSaveResult, setLastSaveResult] = useState(null);
+  const [lastTestResult, setLastTestResult] = useState(null);
 
   const refreshHealth = useCallback(async (options = {}) => {
     const nextHealth = await checkLineupPushSubscriptionHealth(options);
@@ -180,6 +183,7 @@ export default function PhoneNotificationsButton() {
 
     try {
       const result = await sendTestPushNotification();
+      setLastTestResult(result);
       await refreshDiagnostics();
       const summary = normalizePushSummary(result);
       setMessage(`This-device test sent to ${summary.successCount} device${summary.successCount === 1 ? '' : 's'}. Delivery logs: ${summary.deliveryLogs}.`);
@@ -198,6 +202,7 @@ export default function PhoneNotificationsButton() {
 
     try {
       const result = await sendTestPushNotificationToAllDevices();
+      setLastTestResult(result);
       await refreshDiagnostics();
       const summary = normalizePushSummary(result);
       setMessage(`All-device test attempted ${summary.totalSubscriptions} subscription${summary.totalSubscriptions === 1 ? '' : 's'}: ${summary.successCount} sent, ${summary.failureCount} failed, ${summary.expiredRemovedCount} expired. Delivery logs: ${summary.deliveryLogs}.`);
@@ -245,6 +250,7 @@ export default function PhoneNotificationsButton() {
   const app = diagnostics?.app;
   const lastSent = lastSaveResult?.sent || lastSaveResult?.received || null;
   const lastVerification = lastSaveResult?.verification || null;
+  const lastTestSummary = normalizePushSummary(lastTestResult || {});
   const isInstalledPwa = status.isStandalone;
   const needsIosInstallHelp = status.isIos && !isInstalledPwa;
 
@@ -271,6 +277,7 @@ export default function PhoneNotificationsButton() {
       <div className="space-y-1 text-xs font-medium leading-relaxed text-slate-500">
         <p>Web push uses the OS default notification sound settings. Android browsers may vibrate when supported.</p>
         <p>Focus Mode, Do Not Disturb, Battery Saver, blocked site permissions, or OS notification settings can suppress alerts.</p>
+        <p>Notifications are blocked until they are allowed again in the browser or phone settings.</p>
       </div>
 
       {status.isIos && !status.isStandalone && (
@@ -340,6 +347,9 @@ export default function PhoneNotificationsButton() {
           <DiagnosticRow label="Supabase user agent" value={subscriptionStatus?.serverUserAgentSaved} tone={subscriptionStatus?.serverUserAgentSaved ? 'good' : 'warn'} />
           <DiagnosticRow label="Supabase app version" value={subscriptionStatus?.serverAppVersion} tone={subscriptionStatus?.serverAppVersion ? 'good' : 'warn'} />
           <DiagnosticRow label="Supabase SW version" value={subscriptionStatus?.serverServiceWorkerVersion} tone={subscriptionStatus?.serverServiceWorkerVersion ? 'good' : 'warn'} />
+          <DiagnosticRow label="Supabase sw_version" value={subscriptionStatus?.serverSwVersion} tone={subscriptionStatus?.serverSwVersion ? 'good' : 'warn'} />
+          <DiagnosticRow label="Supabase timezone" value={subscriptionStatus?.serverTimezone} />
+          <DiagnosticRow label="Saved permission" value={subscriptionStatus?.serverNotificationPermission} />
           <DiagnosticRow label="Last sent device_id" value={lastSent?.device_id} tone={lastSent?.device_id ? 'good' : 'warn'} />
           <DiagnosticRow label="Last sent platform" value={lastSent?.platform} tone={lastSent?.platform ? 'good' : 'warn'} />
           <DiagnosticRow label="Last sent app version" value={lastSent?.app_version} tone={lastSent?.app_version ? 'good' : 'warn'} />
@@ -348,6 +358,11 @@ export default function PhoneNotificationsButton() {
             label="Last save verified"
             value={lastSaveResult?.error ? `Error: ${lastSaveResult.error}` : lastVerification ? Boolean(lastVerification.saved) : ''}
             tone={lastVerification?.saved ? 'good' : lastSaveResult?.error ? 'warn' : 'slate'}
+          />
+          <DiagnosticRow
+            label="Last push test result"
+            value={lastTestResult ? `${lastTestSummary.successCount}/${lastTestSummary.attempted} sent, ${lastTestSummary.inactiveMarked} inactive` : ''}
+            tone={lastTestResult && lastTestSummary.successCount > 0 ? 'good' : 'slate'}
           />
           <DiagnosticRow label="Last subscription sync" value={metadata?.lastSubscriptionSyncAt} />
           <DiagnosticRow label="Last push received" value={metadata?.lastPushReceivedAt} />

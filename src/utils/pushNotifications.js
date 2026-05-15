@@ -10,7 +10,7 @@ const IS_DEV = import.meta.env.DEV;
 const BUILD_VERSION = typeof __APP_BUILD_VERSION__ === 'string' ? __APP_BUILD_VERSION__ : 'dev';
 const APP_VERSION = import.meta.env.VITE_APP_VERSION || (typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : BUILD_VERSION);
 
-let cachedVapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
+let cachedVapidPublicKey = IS_DEV ? import.meta.env.VITE_VAPID_PUBLIC_KEY || '' : '';
 
 function debugPush(message, details) {
   if (!IS_DEV) return;
@@ -166,7 +166,13 @@ async function getApplicationServerKey() {
 
   const body = await fetchJson(
     `${API_BASE}/public-key`,
-    { method: 'GET' },
+    {
+      method: 'GET',
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache',
+      },
+    },
     'Web Push public key is not configured.'
   );
 
@@ -207,6 +213,9 @@ async function saveSubscriptionToServer(subscription) {
   const device_label = getDeviceLabel();
   const app_version = APP_VERSION;
   const service_worker_version = BUILD_VERSION;
+  const sw_version = service_worker_version;
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  const notification_permission = 'Notification' in window ? Notification.permission : 'unsupported';
   const payload = {
     endpoint,
     p256dh,
@@ -226,6 +235,11 @@ async function saveSubscriptionToServer(subscription) {
     appVersion: app_version,
     service_worker_version,
     serviceWorkerVersion: service_worker_version,
+    sw_version,
+    swVersion: sw_version,
+    timezone,
+    notification_permission,
+    notificationPermission: notification_permission,
     metadata: {
       device_id,
       deviceId: device_id,
@@ -238,6 +252,11 @@ async function saveSubscriptionToServer(subscription) {
       appVersion: app_version,
       service_worker_version,
       serviceWorkerVersion: service_worker_version,
+      sw_version,
+      swVersion: sw_version,
+      timezone,
+      notification_permission,
+      notificationPermission: notification_permission,
     },
     subscription: {
       endpoint,
@@ -258,6 +277,11 @@ async function saveSubscriptionToServer(subscription) {
       appVersion: app_version,
       service_worker_version,
       serviceWorkerVersion: service_worker_version,
+      sw_version,
+      swVersion: sw_version,
+      timezone,
+      notification_permission,
+      notificationPermission: notification_permission,
     },
   };
   const loggedPayload = {
@@ -279,6 +303,11 @@ async function saveSubscriptionToServer(subscription) {
     appVersion: app_version,
     service_worker_version,
     serviceWorkerVersion: service_worker_version,
+    sw_version,
+    swVersion: sw_version,
+    timezone,
+    notification_permission,
+    notificationPermission: notification_permission,
     metadata: {
       device_id,
       deviceId: device_id,
@@ -291,6 +320,11 @@ async function saveSubscriptionToServer(subscription) {
       appVersion: app_version,
       service_worker_version,
       serviceWorkerVersion: service_worker_version,
+      sw_version,
+      swVersion: sw_version,
+      timezone,
+      notification_permission,
+      notificationPermission: notification_permission,
     },
     subscription: {
       endpoint,
@@ -311,6 +345,11 @@ async function saveSubscriptionToServer(subscription) {
       appVersion: app_version,
       service_worker_version,
       serviceWorkerVersion: service_worker_version,
+      sw_version,
+      swVersion: sw_version,
+      timezone,
+      notification_permission,
+      notificationPermission: notification_permission,
     },
   };
 
@@ -377,6 +416,8 @@ async function saveSubscriptionToServer(subscription) {
       appVersion: app_version,
       service_worker_version,
       serviceWorkerVersion: service_worker_version,
+      sw_version,
+      swVersion: sw_version,
       user_agent_saved: Boolean(user_agent),
       userAgentSaved: Boolean(user_agent),
     },
@@ -641,9 +682,9 @@ export async function sendTestPushNotification() {
       body: JSON.stringify({
         subscription: health.subscription.toJSON(),
         targetEndpoint: health.subscription.endpoint,
-        title: 'Line Up Manager',
-        body: 'Test phone notification',
-        url: '/lineups',
+        title: 'CCFBC Line Up Test',
+        body: 'Push notifications are working on this device.',
+        url: '/',
       }),
     },
     'Unable to send test notification.'
@@ -666,9 +707,9 @@ export async function sendTestPushNotificationToAllDevices() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title: 'Line Up Manager',
-        body: 'Test phone notification for all subscribed devices',
-        url: '/lineups',
+        title: 'CCFBC Line Up Test',
+        body: 'Push notifications are working on this device.',
+        url: '/',
       }),
     },
     'Unable to send test notification to all devices.'
@@ -799,6 +840,9 @@ export async function getNotificationDiagnostics({ refreshServer = false, ensure
       serverUserAgentSaved: Boolean(serverSubscription?.userAgentSaved || serverSubscription?.user_agent_saved),
       serverAppVersion: serverSubscription?.appVersion || serverSubscription?.app_version || '',
       serverServiceWorkerVersion: serverSubscription?.serviceWorkerVersion || serverSubscription?.service_worker_version || '',
+      serverSwVersion: serverSubscription?.sw_version || serverSubscription?.serviceWorkerVersion || serverSubscription?.service_worker_version || '',
+      serverTimezone: serverSubscription?.timezone || '',
+      serverNotificationPermission: serverSubscription?.notification_permission || '',
       serverLastSeenAt: serverSubscription?.lastSeenAt || null,
       serverUpdatedAt: serverSubscription?.updatedAt || null,
       serverError: serverSubscription?.error || '',
@@ -820,7 +864,7 @@ export async function getNotificationDiagnostics({ refreshServer = false, ensure
   };
 }
 
-export async function sendLineupPushNotification(lineup) {
+export async function sendLineupPushNotification(lineup, { eventType = 'UPDATE', excludeCurrentDevice = true } = {}) {
   if (!lineup?.id) return null;
 
   const targetUrl = `/lineups/${lineup.id}`;
@@ -832,7 +876,9 @@ export async function sendLineupPushNotification(lineup) {
       body: JSON.stringify({
         lineupId: lineup.id,
         url: targetUrl,
-        excludeEndpoint: getStoredPushSubscriptionEndpoint(),
+        eventType,
+        updatedAt: lineup.updatedAt || lineup.updated_at || lineup.createdAt || lineup.created_at || new Date().toISOString(),
+        excludeEndpoint: excludeCurrentDevice ? getStoredPushSubscriptionEndpoint() : '',
       }),
     },
     'Unable to send lineup push notification.'

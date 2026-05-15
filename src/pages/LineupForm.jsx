@@ -115,7 +115,14 @@ export default function LineupForm() {
       console.log("Selected lineup songs:", selectedSongs);
       const saved = await saveLineup(lineup);
       if (!saved?.id) throw new Error('Lineup was not saved.');
-      showToast(`Lineup for ${lineup.date} saved!`, 'success');
+      const pushSent = saved.pushResult?.successCount ?? saved.pushResult?.sent ?? null;
+      if (typeof pushSent === 'number') {
+        showToast(`Lineup saved. Notification sent to ${pushSent} device${pushSent === 1 ? '' : 's'}.`, 'success');
+      } else if (saved.pushError) {
+        showToast('Lineup saved, but push notification failed.', 'error');
+      } else {
+        showToast(`Lineup for ${lineup.date} saved!`, 'success');
+      }
       navigate(`/lineups/${saved.id}`);
     } catch (error) {
       console.error("Save lineup error:", error);

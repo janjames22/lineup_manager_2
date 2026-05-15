@@ -59,6 +59,7 @@ export async function playNotificationSound() {
     if (IS_DEV) console.log('[LineupNotifications] notification sound played');
   } catch (error) {
     console.warn('[LineupNotifications] notification sound blocked:', error);
+    throw error;
   }
 }
 

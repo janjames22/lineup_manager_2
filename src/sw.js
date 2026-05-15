@@ -206,8 +206,8 @@ function createPendingPushNotification(payload = {}, options = {}) {
 
   return {
     id: options.data?.notificationId || `lineup-${lineupId}`,
-    type: 'lineup_created',
-    title: payload.title || 'New lineup added',
+    type: options.data?.type || payload.type || 'lineup',
+    title: payload.title || 'Line Up Updated',
     message: payload.body || options.body || 'Tap to open lineup',
     body: payload.body || options.body || '',
     lineupId,
@@ -217,6 +217,37 @@ function createPendingPushNotification(payload = {}, options = {}) {
     read: false,
     source: 'web_push',
   };
+}
+
+async function postPushNotificationToOpenClients(payload = {}, options = {}, pendingNotification = null) {
+  const data = options.data || {};
+  const clientPayload = {
+    id: data.notificationId || payload.notificationId || payload.id || pendingNotification?.id || null,
+    notificationId: data.notificationId || payload.notificationId || payload.id || pendingNotification?.id || null,
+    type: data.type || payload.type || (data.lineupId ? 'lineup' : 'push'),
+    title: payload.title || (data.lineupId ? 'Line Up Updated' : 'Line Up Manager'),
+    body: payload.body || options.body || '',
+    message: payload.message || payload.body || options.body || '',
+    lineupId: data.lineupId || payload.lineupId || null,
+    url: data.url || payload.url || (data.lineupId ? `/lineups/${data.lineupId}` : '/'),
+    tag: options.tag || payload.tag || '',
+    createdAt: payload.createdAt || payload.timestamp || new Date(data.timestamp || Date.now()).toISOString(),
+    timestamp: payload.timestamp || payload.createdAt || new Date(data.timestamp || Date.now()).toISOString(),
+  };
+
+  const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+  await Promise.all(clientList.map(async (client) => {
+    try {
+      const clientUrl = new URL(client.url);
+      if (clientUrl.origin !== self.location.origin) return;
+      client.postMessage?.({
+        type: clientPayload.lineupId ? 'LINEUP_NOTIFICATION' : 'PUSH_NOTIFICATION',
+        payload: clientPayload,
+      });
+    } catch (error) {
+      debugPush('foreground push message could not be posted to client', error);
+    }
+  }));
 }
 
 async function readPendingPushNotification(notificationId) {
@@ -476,6 +507,7 @@ self.addEventListener('push', (event) => {
         }
       }
 
+      await postPushNotificationToOpenClients(payload, options, pendingNotification);
       await self.registration.showNotification(title, options);
     })()
   );

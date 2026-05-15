@@ -33,9 +33,11 @@ function getLineupId(lineupOrId) {
 
 function getLineupSignature(lineup = {}) {
   const createdAt = lineup.created_at || lineup.createdAt;
-  if (!createdAt) return '';
+  const updatedAt = lineup.updated_at || lineup.updatedAt;
+  if (!createdAt && !updatedAt) return '';
 
   return [
+    updatedAt || '',
     createdAt,
     lineup.date || '',
     lineup.service_time || lineup.serviceTime || '',
@@ -58,8 +60,17 @@ export function consumeLocalLineupCreation(lineupOrId) {
   if (!id && !signature) return false;
 
   const existing = pruneLocalCreatedLineups(readJson(LOCAL_CREATED_LINEUPS_KEY, [], window.sessionStorage));
-  const wasLocal = existing.some((item) => (id && item.id === id) || (signature && item.signature === signature));
-  writeJson(LOCAL_CREATED_LINEUPS_KEY, existing.filter((item) => item.id !== id && item.signature !== signature), window.sessionStorage);
+  const matchesLocalSave = (item) => (
+    (signature && item.signature === signature)
+    || (!signature && id && item.id === id)
+    || (id && item.id === id && !item.signature)
+  );
+  const wasLocal = existing.some(matchesLocalSave);
+  writeJson(
+    LOCAL_CREATED_LINEUPS_KEY,
+    existing.filter((item) => !matchesLocalSave(item)),
+    window.sessionStorage
+  );
   return wasLocal;
 }
 
@@ -100,20 +111,26 @@ export function getLineupNotificationMessage(lineup = {}) {
   return 'Tap to open lineup';
 }
 
-export function createLineupNotification(lineup = {}) {
+export function createLineupNotification(lineup = {}, eventType = 'INSERT') {
   const lineupId = lineup.id;
   if (!lineupId) return null;
+  const normalizedEventType = String(eventType || '').toUpperCase();
+  const isUpdate = normalizedEventType === 'UPDATE' || normalizedEventType === 'LINEUP_UPDATED';
+  const timestamp = lineup.updated_at || lineup.updatedAt || lineup.created_at || lineup.createdAt || new Date().toISOString();
+  const safeTimestamp = String(timestamp).replace(/[^a-z0-9]/gi, '');
+  const notificationId = lineup.notificationId
+    || (isUpdate ? `lineup-updated-${lineupId}-${safeTimestamp}` : `lineup-created-${lineupId}-${safeTimestamp}`);
 
   return {
-    id: globalThis.crypto?.randomUUID?.() || `lineup-${lineupId}-${Date.now()}`,
-    type: 'lineup_created',
-    title: 'New lineup added',
+    id: notificationId,
+    type: isUpdate ? 'lineup_updated' : 'lineup_created',
+    title: isUpdate ? 'Line Up Updated' : 'New Line Up Available',
     lineupId,
     url: `/lineups/${lineupId}`,
     message: getLineupNotificationMessage(lineup),
     date: lineup.date || '',
     serviceTime: lineup.service_time || lineup.serviceTime || '',
-    createdAt: new Date().toISOString(),
+    createdAt: timestamp,
     read: false,
   };
 }
@@ -123,9 +140,9 @@ export function createLineupNotificationFromPush(pushNotification = {}) {
   if (!lineupId) return null;
 
   return {
-    id: pushNotification.id || `push-lineup-${lineupId}-${Date.now()}`,
-    type: 'lineup_created',
-    title: pushNotification.title || 'New lineup added',
+    id: pushNotification.notificationId || pushNotification.id || `push-lineup-${lineupId}-${Date.now()}`,
+    type: pushNotification.type || 'lineup',
+    title: pushNotification.title || 'Line Up Updated',
     lineupId,
     url: pushNotification.url || `/lineups/${lineupId}`,
     message: pushNotification.message || pushNotification.body || 'Tap to open lineup',

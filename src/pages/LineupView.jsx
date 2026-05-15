@@ -87,7 +87,7 @@ export default function LineupView() {
     setLineup(updatedLineup);
     
     try {
-      await saveLineup(updatedLineup);
+      await saveLineup(updatedLineup, { notify: false });
       showToast(`${currentLineupSong.title} transposed to ${newKey}`, 'success', 2000);
     } catch {
       showToast('Failed to save key change', 'error');

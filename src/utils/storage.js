@@ -710,7 +710,7 @@ export async function getLineupById(id) {
   return localMatch || null;
 }
 
-export async function saveLineup(lineup) {
+export async function saveLineup(lineup, { notify = true } = {}) {
   const nextLineup = normalizeLineup(lineup);
   
   // Try Supabase first
@@ -773,12 +773,25 @@ export async function saveLineup(lineup) {
           ? cachedLineups.map((item) => (item.id === savedLineup.id ? savedLineup : item))
           : [savedLineup, ...cachedLineups];
         saveLiveLineupsCache(nextCache);
-        if (!existing && result.data.id) {
-          markLineupCreatedLocally(result.data.id);
-          sendLineupPushNotification(savedLineup).catch((error) => {
-            console.error('[LineupNotifications] failed to send web push notification:', error);
-          });
+        if (result.data.id) {
+          markLineupCreatedLocally(savedLineup);
         }
+
+        if (notify && result.data.id) {
+          try {
+            const pushResult = await sendLineupPushNotification(savedLineup, {
+              eventType: existing ? 'UPDATE' : 'INSERT',
+            });
+            return { ...savedLineup, pushResult };
+          } catch (error) {
+            console.error('[LineupNotifications] failed to send web push notification:', error);
+            return {
+              ...savedLineup,
+              pushError: error?.message || 'Lineup saved, but push notification failed.',
+            };
+          }
+        }
+
         return savedLineup;
       }
     } catch (err) {

@@ -89,6 +89,9 @@ CREATE TABLE IF NOT EXISTS public.push_subscriptions (
     platform TEXT,
     app_version TEXT,
     service_worker_version TEXT,
+    sw_version TEXT,
+    timezone TEXT,
+    notification_permission TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     last_seen_at TIMESTAMPTZ,
@@ -102,6 +105,9 @@ ALTER TABLE public.push_subscriptions
     ADD COLUMN IF NOT EXISTS platform TEXT,
     ADD COLUMN IF NOT EXISTS app_version TEXT,
     ADD COLUMN IF NOT EXISTS service_worker_version TEXT,
+    ADD COLUMN IF NOT EXISTS sw_version TEXT,
+    ADD COLUMN IF NOT EXISTS timezone TEXT,
+    ADD COLUMN IF NOT EXISTS notification_permission TEXT,
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(),
     ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ,
@@ -118,6 +124,7 @@ SET
     created_at = COALESCE(created_at, NOW()),
     updated_at = COALESCE(updated_at, NOW()),
     last_seen_at = COALESCE(last_seen_at, updated_at, created_at, NOW()),
+    sw_version = COALESCE(sw_version, service_worker_version),
     is_active = COALESCE(is_active, TRUE);
 
 ALTER TABLE public.push_subscriptions
@@ -157,6 +164,9 @@ ALTER TABLE public.push_subscriptions
         AND (device_label IS NULL OR char_length(device_label) <= 200)
         AND (app_version IS NULL OR char_length(app_version) <= 200)
         AND (service_worker_version IS NULL OR char_length(service_worker_version) <= 200)
+        AND (sw_version IS NULL OR char_length(sw_version) <= 200)
+        AND (timezone IS NULL OR char_length(timezone) <= 100)
+        AND (notification_permission IS NULL OR char_length(notification_permission) <= 40)
         AND (
             platform IS NULL
             OR platform IN (
@@ -181,6 +191,9 @@ RETURNS TABLE (
     user_agent TEXT,
     app_version TEXT,
     service_worker_version TEXT,
+    sw_version TEXT,
+    timezone TEXT,
+    notification_permission TEXT,
     is_active BOOLEAN,
     last_seen_at TIMESTAMPTZ,
     updated_at TIMESTAMPTZ
@@ -197,20 +210,19 @@ DECLARE
     payload_platform TEXT := NULLIF(BTRIM(subscription_payload->>'platform'), '');
     payload_user_agent TEXT := NULLIF(subscription_payload->>'user_agent', '');
     payload_device_label TEXT := NULLIF(subscription_payload->>'device_label', '');
-    payload_app_version TEXT := NULLIF(BTRIM(subscription_payload->>'app_version'), '');
-    payload_service_worker_version TEXT := NULLIF(BTRIM(subscription_payload->>'service_worker_version'), '');
+    payload_app_version TEXT := COALESCE(NULLIF(BTRIM(subscription_payload->>'app_version'), ''), 'server-unknown');
+    payload_service_worker_version TEXT := COALESCE(NULLIF(BTRIM(subscription_payload->>'service_worker_version'), ''), NULLIF(BTRIM(subscription_payload->>'sw_version'), ''), payload_app_version);
+    payload_sw_version TEXT := COALESCE(NULLIF(BTRIM(subscription_payload->>'sw_version'), ''), payload_service_worker_version);
+    payload_timezone TEXT := NULLIF(BTRIM(subscription_payload->>'timezone'), '');
+    payload_notification_permission TEXT := NULLIF(BTRIM(subscription_payload->>'notification_permission'), '');
     touched_at TIMESTAMPTZ := NOW();
 BEGIN
     IF payload_endpoint IS NULL OR payload_p256dh IS NULL OR payload_auth IS NULL THEN
         RAISE EXCEPTION 'Missing push subscription endpoint or keys';
     END IF;
 
-    IF payload_device_id IS NULL OR payload_platform IS NULL OR payload_user_agent IS NULL THEN
+    IF payload_device_id IS NULL OR payload_platform IS NULL THEN
         RAISE EXCEPTION 'Missing push subscription metadata';
-    END IF;
-
-    IF payload_app_version IS NULL OR payload_service_worker_version IS NULL THEN
-        RAISE EXCEPTION 'Missing push subscription app or service worker version';
     END IF;
 
     RETURN QUERY
@@ -224,6 +236,9 @@ BEGIN
         platform,
         app_version,
         service_worker_version,
+        sw_version,
+        timezone,
+        notification_permission,
         is_active,
         last_seen_at,
         updated_at
@@ -238,6 +253,9 @@ BEGIN
         payload_platform,
         payload_app_version,
         payload_service_worker_version,
+        payload_sw_version,
+        payload_timezone,
+        payload_notification_permission,
         TRUE,
         touched_at,
         touched_at
@@ -252,6 +270,9 @@ BEGIN
         platform = EXCLUDED.platform,
         app_version = EXCLUDED.app_version,
         service_worker_version = EXCLUDED.service_worker_version,
+        sw_version = EXCLUDED.sw_version,
+        timezone = EXCLUDED.timezone,
+        notification_permission = EXCLUDED.notification_permission,
         is_active = TRUE,
         last_seen_at = touched_at,
         updated_at = touched_at
@@ -262,6 +283,9 @@ BEGIN
         ps.user_agent,
         ps.app_version,
         ps.service_worker_version,
+        ps.sw_version,
+        ps.timezone,
+        ps.notification_permission,
         ps.is_active,
         ps.last_seen_at,
         ps.updated_at;
@@ -277,6 +301,9 @@ RETURNS TABLE (
     user_agent TEXT,
     app_version TEXT,
     service_worker_version TEXT,
+    sw_version TEXT,
+    timezone TEXT,
+    notification_permission TEXT,
     is_active BOOLEAN,
     last_seen_at TIMESTAMPTZ,
     updated_at TIMESTAMPTZ
@@ -294,6 +321,9 @@ BEGIN
         ps.user_agent,
         ps.app_version,
         ps.service_worker_version,
+        ps.sw_version,
+        ps.timezone,
+        ps.notification_permission,
         ps.is_active,
         ps.last_seen_at,
         ps.updated_at

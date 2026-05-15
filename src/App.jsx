@@ -17,6 +17,7 @@ import { useRegisterSW } from 'virtual:pwa-register/react';
 import UpdatePrompt from './components/UpdatePrompt';
 import BottomNav from './components/BottomNav';
 import ToastContainer from './components/ToastContainer';
+import LineupNotificationBanner from './components/LineupNotificationBanner';
 import { useToast } from './hooks/useToast';
 import useLineupNotifications from './hooks/useLineupNotifications';
 import ShareAppQrModal from './components/ShareAppQrModal';
@@ -104,6 +105,9 @@ export default function App() {
     markAllRead: markLineupNotificationsRead,
     markNotificationRead: markSingleLineupNotificationRead,
     clearNotification: clearLineupNotification,
+    bannerNotification: lineupBannerNotification,
+    dismissBannerNotification: dismissLineupBannerNotification,
+    receivePushNotification,
     soundEnabled: lineupNotificationSoundEnabled,
     setSoundEnabled: setLineupNotificationSoundEnabled,
   } = useLineupNotifications();
@@ -234,6 +238,17 @@ export default function App() {
     if (!('serviceWorker' in navigator)) return undefined;
 
     const handleServiceWorkerMessage = (event) => {
+      if (event.data?.type === 'LINEUP_NOTIFICATION') {
+        receivePushNotification(event.data.payload || {});
+        return;
+      }
+
+      if (event.data?.type === 'PUSH_NOTIFICATION') {
+        const payload = event.data.payload || {};
+        showToast(payload.body || payload.message || payload.title || 'Notification received.', 'info', 6000);
+        return;
+      }
+
       if (!['LINEUP_NOTIFICATION_CLICK', 'OPEN_LINEUP_FROM_NOTIFICATION'].includes(event.data?.type)) return;
 
       try {
@@ -257,7 +272,28 @@ export default function App() {
     return () => {
       navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
     };
-  }, [lineupNotifications, markSingleLineupNotificationRead, navigate]);
+  }, [lineupNotifications, markSingleLineupNotificationRead, navigate, receivePushNotification, showToast]);
+
+  useEffect(() => {
+    if (!lineupBannerNotification) return undefined;
+    const timerId = window.setTimeout(() => {
+      dismissLineupBannerNotification();
+    }, 8000);
+
+    return () => window.clearTimeout(timerId);
+  }, [dismissLineupBannerNotification, lineupBannerNotification]);
+
+  const openLineupBannerNotification = useCallback(() => {
+    if (!lineupBannerNotification?.lineupId) return;
+    markSingleLineupNotificationRead(lineupBannerNotification.id);
+    dismissLineupBannerNotification();
+    try {
+      const targetUrl = new URL(lineupBannerNotification.url || `/lineups/${lineupBannerNotification.lineupId}`, window.location.origin);
+      navigate(`${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`);
+    } catch {
+      navigate(`/lineups/${lineupBannerNotification.lineupId}`);
+    }
+  }, [dismissLineupBannerNotification, lineupBannerNotification, markSingleLineupNotificationRead, navigate]);
 
   const reloadAppForUpdate = (reason) => {
     if (reloadTriggeredRef.current) return;
@@ -510,6 +546,13 @@ export default function App() {
       )}
       {showAppChrome && <InstallBanner />}
       <ToastContainer />
+      {showAppChrome && (
+        <LineupNotificationBanner
+          notification={lineupBannerNotification}
+          onOpen={openLineupBannerNotification}
+          onDismiss={dismissLineupBannerNotification}
+        />
+      )}
       <ShareAppQrModal open={shareQrOpen} onClose={() => setShareQrOpen(false)} />
       
       {promptVisible && (
