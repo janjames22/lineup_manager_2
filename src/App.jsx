@@ -90,6 +90,7 @@ export default function App() {
   const lastUpdateCheckAtRef = useRef(0);
   const waitingWorkerLoggedRef = useRef(false);
   const reloadTriggeredRef = useRef(false);
+  const routeScrollFrameRef = useRef(null);
   const [swRegistration, setSwRegistration] = useState(null);
   const [manualNeedUpdate, setManualNeedUpdate] = useState(false);
   const [checkingForUpdate, setCheckingForUpdate] = useState(false);
@@ -111,6 +112,22 @@ export default function App() {
     soundEnabled: lineupNotificationSoundEnabled,
     setSoundEnabled: setLineupNotificationSoundEnabled,
   } = useLineupNotifications();
+
+  useEffect(() => {
+    if (routeScrollFrameRef.current) window.cancelAnimationFrame(routeScrollFrameRef.current);
+    routeScrollFrameRef.current = window.requestAnimationFrame(() => {
+      const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      window.scrollTo({
+        top: 0,
+        left: 0,
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      });
+    });
+
+    return () => {
+      if (routeScrollFrameRef.current) window.cancelAnimationFrame(routeScrollFrameRef.current);
+    };
+  }, [location.pathname]);
 
   const refreshAvailableVersionInfo = useCallback(async () => {
     const versionInfo = await fetchAppVersionInfo();
