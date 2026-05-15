@@ -40,8 +40,8 @@ export default async function handler(request, response) {
     const actionSlug = isInsert ? 'created' : 'updated';
     const safeTimestamp = String(createdAt).replace(/[^a-z0-9]/gi, '');
     const payload = createPushPayload({
-      type: payloadType,
-      title: isInsert ? 'New Line Up Available' : 'Line Up Updated',
+      type: 'lineup',
+      title: isInsert ? 'New lineup added' : 'Lineup updated',
       body: formatLineupBody(lineup),
       url: url || `/lineups/${lineup.id}`,
       lineupId: lineup.id,

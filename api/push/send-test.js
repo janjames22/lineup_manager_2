@@ -43,7 +43,7 @@ export default async function handler(request, response) {
     }
 
     if (targetEndpoint && (result.totalSubscriptions ?? result.total ?? 0) === 0) {
-      response.status(404).json({ ...result, error: 'No active push subscription found for this device.' });
+      response.status(404).json({ ...result, error: 'This device is not saved yet. Please resubscribe.' });
       return;
     }
 

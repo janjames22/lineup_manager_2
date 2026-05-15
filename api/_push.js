@@ -261,16 +261,19 @@ export function normalizeSubscription(body = {}, request) {
 
 export function getPushSubscriptionMetadataStatus(row = {}) {
   const missing = [];
+  const warnings = [];
 
   if (!row?.device_id) missing.push('device_id');
   if (!row?.platform) missing.push('platform');
-  if (!row?.user_agent) missing.push('user_agent');
-  if (!row?.app_version) missing.push('app_version');
-  if (!row?.service_worker_version && !row?.sw_version) missing.push('service_worker_version');
+  
+  if (!row?.user_agent) warnings.push('user_agent');
+  if (!row?.app_version) warnings.push('app_version');
+  if (!row?.service_worker_version && !row?.sw_version) warnings.push('service_worker_version');
 
   return {
     saved: missing.length === 0,
     missing,
+    warnings,
   };
 }
 

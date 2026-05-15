@@ -1,4 +1,4 @@
-import { BellOff, BellRing, ClipboardCheck, RefreshCw, Send, Smartphone } from 'lucide-react';
+import { BellOff, BellRing, ClipboardCheck, RefreshCw, Send, Smartphone, ChevronDown, ChevronUp } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   checkLineupPushSubscriptionHealth,
@@ -62,6 +62,7 @@ export default function PhoneNotificationsButton() {
   const [message, setMessage] = useState('');
   const [lastSaveResult, setLastSaveResult] = useState(null);
   const [lastTestResult, setLastTestResult] = useState(null);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   const refreshHealth = useCallback(async (options = {}) => {
     const nextHealth = await checkLineupPushSubscriptionHealth(options);
@@ -186,7 +187,11 @@ export default function PhoneNotificationsButton() {
       setLastTestResult(result);
       await refreshDiagnostics();
       const summary = normalizePushSummary(result);
-      setMessage(`This-device test sent to ${summary.successCount} device${summary.successCount === 1 ? '' : 's'}. Delivery logs: ${summary.deliveryLogs}.`);
+      if (summary.successCount > 0) {
+        setMessage('Test notification sent.');
+      } else {
+        setMessage(`Test failed. Delivery logs: ${summary.deliveryLogs}.`);
+      }
     } catch (error) {
       console.error('[PushNotifications] failed to send test notification:', error);
       await refreshHealth().catch(() => {});
@@ -318,7 +323,18 @@ export default function PhoneNotificationsButton() {
           </p>
         )}
 
-        <dl className="rounded-lg bg-slate-900/70 px-3">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-slate-300 transition-colors hover:bg-slate-800"
+          onClick={() => setShowDiagnostics((prev) => !prev)}
+        >
+          <span>Advanced Diagnostics</span>
+          {showDiagnostics ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </button>
+
+        {showDiagnostics && (
+          <div className="mt-3 animate-in fade-in slide-in-from-top-2">
+            <dl className="rounded-lg bg-slate-900/70 px-3">
           <DiagnosticRow label="Device type" value={status.isIos ? 'iPhone/iPad' : status.isAndroid ? 'Android' : 'Desktop/other'} />
           <DiagnosticRow label="Running in Safari" value={status.isSafari} tone={status.isIos && status.isSafari ? 'good' : 'slate'} />
           <DiagnosticRow label="Installed PWA" value={isInstalledPwa} tone={isInstalledPwa ? 'good' : status.isIos ? 'warn' : 'slate'} />
@@ -412,6 +428,8 @@ export default function PhoneNotificationsButton() {
             Send Test Local Notification
           </button>
         </div>
+      </div>
+      )}
       </div>
 
       {message && <p className="whitespace-pre-line text-xs font-semibold text-slate-300">{message}</p>}
