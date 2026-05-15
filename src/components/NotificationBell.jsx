@@ -161,51 +161,53 @@ export default function NotificationBell({
       {sortedNotifications.length ? sortedNotifications.map((notification) => (
         <div
           key={notification.id}
-          className={`flex min-w-0 items-stretch gap-2 border-b p-2 last:border-b-0 ${
+          className={`w-full border-b p-2 last:border-b-0 ${
             notification.read
               ? 'border-slate-800/70 bg-slate-900'
               : 'border-blue-500/20 bg-blue-500/[0.07]'
           }`}
         >
-          <button
-            type="button"
-            className={`flex min-w-0 flex-1 cursor-pointer items-start gap-3 rounded-xl px-2 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/70 ${
-              notification.read ? 'hover:bg-slate-800/80' : 'hover:bg-blue-500/10'
-            }`}
-            onClick={() => handleNotificationClick(notification)}
-            aria-label={`Open lineup for ${notification.message || notification.title || 'this notification'}`}
-          >
-            <span className={`mt-1.5 size-2.5 shrink-0 rounded-full ${notification.read ? 'bg-slate-700' : 'bg-blue-400 shadow-[0_0_0_4px_rgba(59,130,246,0.12)]'}`} />
-            <span className="min-w-0 flex-1">
-              <span className="flex min-w-0 items-center gap-2">
-                <span className={`block min-w-0 flex-1 break-words text-sm font-black ${notification.read ? 'text-slate-300' : 'text-white'}`}>
-                  {notification.title || 'New lineup added'}
-                </span>
-                {!notification.read && (
-                  <span className="shrink-0 rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-black uppercase text-blue-200">
-                    New
+          <div className="flex w-full items-start gap-2">
+            <button
+              type="button"
+              className={`grid flex-1 grid-cols-[12px_minmax(0,1fr)] items-start gap-3 rounded-xl p-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/70 ${
+                notification.read ? 'hover:bg-slate-800/80' : 'hover:bg-blue-500/10'
+              }`}
+              onClick={() => handleNotificationClick(notification)}
+              aria-label={`Open lineup for ${notification.title || 'this notification'}`}
+            >
+              <span className={`mt-1.5 size-2.5 shrink-0 rounded-full ${notification.read ? 'bg-slate-700' : 'bg-blue-400 shadow-[0_0_0_4px_rgba(59,130,246,0.12)]'}`} />
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`whitespace-normal break-words text-sm font-black leading-tight ${notification.read ? 'text-slate-300' : 'text-white'}`}>
+                    {notification.title || 'New lineup added'}
                   </span>
-                )}
-              </span>
-              <span className={`mt-1 block break-words text-xs font-semibold ${notification.read ? 'text-slate-500' : 'text-slate-300'}`}>
-                {notification.message || notification.body || 'Tap to open lineup'}
-              </span>
-              <span className="mt-1 block text-xs font-medium text-slate-600">
-                {new Date(notification.createdAt).toLocaleString()}
-              </span>
-            </span>
-          </button>
-          <button
-            className="grid size-9 shrink-0 place-items-center rounded-lg text-slate-500 transition-colors hover:bg-slate-800 hover:text-white"
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onClearNotification(notification.id);
-            }}
-            aria-label="Remove notification"
-          >
-            <X size={14} aria-hidden="true" />
-          </button>
+                  {!notification.read && (
+                    <span className="shrink-0 rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-black uppercase text-blue-200">
+                      New
+                    </span>
+                  )}
+                </div>
+                <span className={`mt-1 block whitespace-normal break-words text-xs font-semibold leading-relaxed ${notification.read ? 'text-slate-500' : 'text-slate-300'}`}>
+                  {notification.message || notification.body || 'Tap to open lineup'}
+                </span>
+                <span className="mt-1 block whitespace-normal break-words text-xs font-medium text-slate-600">
+                  {new Date(notification.createdAt).toLocaleString()}
+                </span>
+              </div>
+            </button>
+            <button
+              className="mt-1 grid size-8 shrink-0 place-items-center rounded-lg text-slate-500 transition-colors hover:bg-slate-800 hover:text-white"
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onClearNotification(notification.id);
+              }}
+              aria-label="Remove notification"
+            >
+              <X size={14} aria-hidden="true" />
+            </button>
+          </div>
         </div>
       )) : (
         <div className="p-5">
@@ -278,7 +280,7 @@ export default function NotificationBell({
       {mobileNotificationPanel}
 
       {open && (
-        <div className="absolute right-0 top-full z-[120] mt-2 hidden max-h-[min(42rem,calc(100dvh-8rem))] w-[min(calc(100vw-2rem),22rem)] overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ring-1 ring-white/10 lg:flex lg:flex-col">
+        <div className="absolute right-0 top-full z-[1000] mt-2 hidden max-h-[calc(100vh-120px)] w-[min(440px,calc(100vw-24px))] min-w-[360px] max-w-[440px] overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl ring-1 ring-white/10 lg:flex lg:flex-col">
           <div className="shrink-0 border-b border-slate-800 bg-slate-900/95 p-4 backdrop-blur">
             {panelHeader}
           </div>
