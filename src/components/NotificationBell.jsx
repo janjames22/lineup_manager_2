@@ -235,11 +235,13 @@ export default function NotificationBell({
             {panelHeader}
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
-            {soundControl}
-            <div className="border-b border-slate-800/80 px-4 py-3">
-              <PhoneNotificationsButton />
-            </div>
             {notificationList}
+            <div className="border-t border-slate-800/80 bg-slate-900/30">
+              {soundControl}
+              <div className="px-4 py-4">
+                <PhoneNotificationsButton />
+              </div>
+            </div>
           </div>
           <div className="shrink-0 border-t border-slate-800 bg-slate-950 p-3">
             <button
@@ -281,11 +283,13 @@ export default function NotificationBell({
             {panelHeader}
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-            {soundControl}
-            <div className="border-b border-slate-800/80 px-4 py-3">
-              <PhoneNotificationsButton />
-            </div>
             {notificationList}
+            <div className="border-t border-slate-800/80 bg-slate-900/30">
+              {soundControl}
+              <div className="px-4 py-4">
+                <PhoneNotificationsButton />
+              </div>
+            </div>
           </div>
         </div>
       )}
