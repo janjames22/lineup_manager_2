@@ -461,40 +461,24 @@ ALTER TABLE public.push_delivery_logs ENABLE ROW LEVEL SECURITY;
 -- ============================================
 -- SONGS POLICIES
 -- ============================================
--- Allow public read access
+-- Public read: the song catalog is intentionally readable without auth.
 CREATE POLICY "Allow public read on songs" ON songs
     FOR SELECT USING (true);
 
--- Allow public insert
-CREATE POLICY "Allow public insert on songs" ON songs
-    FOR INSERT WITH CHECK (true);
-
--- Allow public update
-CREATE POLICY "Allow public update on songs" ON songs
-    FOR UPDATE USING (true);
-
--- Allow public delete
-CREATE POLICY "Allow public delete on songs" ON songs
-    FOR DELETE USING (true);
+-- Writes (INSERT/UPDATE/DELETE) go through Vercel API routes that use
+-- SUPABASE_SERVICE_ROLE_KEY. The service role bypasses RLS, so no public
+-- write policies are needed — and having them would let anyone with the
+-- anon key destroy or overwrite the entire catalog.
 
 -- ============================================
 -- LINEUPS POLICIES
 -- ============================================
--- Allow public read access
+-- Public read: lineup details are visible to all app users.
 CREATE POLICY "Allow public read on lineups" ON lineups
     FOR SELECT USING (true);
 
--- Allow public insert
-CREATE POLICY "Allow public insert on lineups" ON lineups
-    FOR INSERT WITH CHECK (true);
-
--- Allow public update
-CREATE POLICY "Allow public update on lineups" ON lineups
-    FOR UPDATE USING (true);
-
--- Allow public delete
-CREATE POLICY "Allow public delete on lineups" ON lineups
-    FOR DELETE USING (true);
+-- Writes go through Vercel API routes using SUPABASE_SERVICE_ROLE_KEY.
+-- No public write policies — same reasoning as songs above.
 
 -- ============================================
 -- PUSH SUBSCRIPTION POLICIES
@@ -509,21 +493,11 @@ DROP POLICY IF EXISTS "Allow public push subscription update" ON public.push_sub
 DROP POLICY IF EXISTS "Allow safe public push subscription insert" ON public.push_subscriptions;
 DROP POLICY IF EXISTS "Allow safe public push subscription refresh" ON public.push_subscriptions;
 
-CREATE POLICY "Allow public read push subscriptions"
-ON public.push_subscriptions
-FOR SELECT
-USING (true);
-
-CREATE POLICY "Allow public insert push subscriptions"
-ON public.push_subscriptions
-FOR INSERT
-WITH CHECK (true);
-
-CREATE POLICY "Allow public update push subscriptions"
-ON public.push_subscriptions
-FOR UPDATE
-USING (true)
-WITH CHECK (true);
+-- No public policies on push_subscriptions. All subscription reads and
+-- writes go through Vercel API routes using SUPABASE_SERVICE_ROLE_KEY,
+-- which bypasses RLS. Public policies here would expose device endpoints,
+-- p256dh/auth keys, and user-agent metadata to anyone with the anon key,
+-- and would let anyone poison or delete subscriptions directly.
 
 -- ============================================
 -- LINEUP NOTIFICATION POLICIES

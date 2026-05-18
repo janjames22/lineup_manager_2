@@ -43,6 +43,7 @@ export function useRealtimeItems({
   mapRow,
   sortItems,
   table,
+  onRealtimeChange,
 }) {
   const { isOnline } = useSyncStatus();
   const [items, setItems] = useState([]);
@@ -134,6 +135,7 @@ export function useRealtimeItems({
           setItems((currentItems) => updateItemsFromRealtime(currentItems, payload, mapRow, sortItems));
           setLastUpdatedAt(new Date());
           setRealtimeStatus('updated');
+          if (onRealtimeChange) onRealtimeChange(payload.new || payload.old || {}, payload.eventType);
           window.setTimeout(() => {
             if (mountedRef.current && subscribedRef.current) setRealtimeStatus('subscribed');
           }, 1800);
@@ -173,7 +175,7 @@ export function useRealtimeItems({
       subscribedRef.current = false;
       supabase.removeChannel(channel);
     };
-  }, [channelName, clearPollTimer, isOnline, mapRow, sortItems, startPollingFallback, table]);
+  }, [channelName, clearPollTimer, isOnline, mapRow, onRealtimeChange, sortItems, startPollingFallback, table]);
 
   return {
     items,

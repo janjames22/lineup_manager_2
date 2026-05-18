@@ -66,11 +66,10 @@ export function consumeLocalLineupCreation(lineupOrId) {
     || (id && item.id === id && !item.signature)
   );
   const wasLocal = existing.some(matchesLocalSave);
-  writeJson(
-    LOCAL_CREATED_LINEUPS_KEY,
-    existing.filter((item) => !matchesLocalSave(item)),
-    window.sessionStorage
-  );
+  // Keep the marker for the full TTL window rather than removing it on first
+  // match — Supabase can re-deliver the same INSERT/UPDATE event, and a second
+  // delivery would no longer be suppressed if the marker was already consumed.
+  if (wasLocal) writeJson(LOCAL_CREATED_LINEUPS_KEY, existing, window.sessionStorage);
   return wasLocal;
 }
 

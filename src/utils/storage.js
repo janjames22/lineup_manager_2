@@ -245,14 +245,18 @@ function safeParse(value, fallback) {
   }
 }
 
-async function withTimeout(promise, label) {
+async function withTimeout(queryFn, label) {
+  const controller = new AbortController();
   let timeoutId;
   const timeout = new Promise((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(`${label} timed out`)), SUPABASE_TIMEOUT_MS);
+    timeoutId = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`${label} timed out`));
+    }, SUPABASE_TIMEOUT_MS);
   });
 
   try {
-    return await Promise.race([promise, timeout]);
+    return await Promise.race([queryFn(controller.signal), timeout]);
   } finally {
     clearTimeout(timeoutId);
   }
@@ -266,9 +270,7 @@ function uid(prefix) {
 function read(key, fallback) {
   try {
     const stored = localStorage.getItem(key);
-    const value = safeParse(stored, fallback);
-    if (!stored) localStorage.setItem(key, JSON.stringify(value));
-    return value;
+    return safeParse(stored, fallback);
   } catch (error) {
     console.error(`Failed to read ${key} from localStorage:`, error);
     return fallback;
@@ -442,10 +444,7 @@ export async function getSongs() {
     debugStorage('Loading songs from Supabase...');
     try {
       const { data, error } = await withTimeout(
-        supabase
-          .from('songs')
-          .select('*')
-          .order('title', { ascending: true }),
+        (signal) => supabase.from('songs').select('*').order('title', { ascending: true }).abortSignal(signal),
         'Supabase getSongs'
       );
 
@@ -478,6 +477,8 @@ export async function getSongById(id) {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     const offlineMatch = await getOfflineSongById(id);
     if (offlineMatch) return normalizeSong(offlineMatch);
+    const liveCacheMatch = getLiveCachedSongs().find((song) => song.id === id);
+    if (liveCacheMatch) return normalizeSong(liveCacheMatch);
     if (isSupabaseConfigured()) return null;
     const localMatch = getLocalSongs().find((song) => song.id === id);
     return localMatch ? normalizeSong(localMatch) : null;
@@ -493,11 +494,7 @@ export async function getSongById(id) {
   if (isSupabaseConfigured() && isValidUUID(id)) {
     try {
       const { data, error } = await withTimeout(
-        supabase
-          .from('songs')
-          .select('*')
-          .eq('id', id)
-          .single(),
+        (signal) => supabase.from('songs').select('*').eq('id', id).abortSignal(signal).single(),
         'Supabase getSongById'
       );
       
@@ -528,42 +525,19 @@ export async function saveSong(song) {
       const snakeSong = toSnakeCaseSong(nextSong);
       debugStorage('Saving to Supabase with snake_case fields:', snakeSong);
       const hasSupabaseId = isValidUUID(nextSong.id);
-      
-      // Check if song exists only when the app id is already a Supabase UUID.
-      const { data: existing } = hasSupabaseId
-        ? await withTimeout(
-            supabase
-              .from('songs')
-              .select('id')
-              .eq('id', nextSong.id)
-              .single(),
-            'Supabase findSong'
-          )
-        : { data: null };
-      
+
       let result;
-      if (existing && hasSupabaseId) {
-        // Update existing
+      if (hasSupabaseId) {
+        // Upsert on id — eliminates the TOCTOU race between a select and update.
         result = await withTimeout(
-          supabase
-            .from('songs')
-            .update(snakeSong)
-            .eq('id', nextSong.id)
-            .select()
-            .single(),
-          'Supabase updateSong'
+          (signal) => supabase.from('songs').upsert(snakeSong, { onConflict: 'id' }).select().abortSignal(signal).single(),
+          'Supabase saveSong'
         );
       } else {
-        // Insert new
         const insertPayload = { ...snakeSong };
         delete insertPayload.id;
-
         result = await withTimeout(
-          supabase
-            .from('songs')
-            .insert(insertPayload)
-            .select()
-            .single(),
+          (signal) => supabase.from('songs').insert(insertPayload).select().abortSignal(signal).single(),
           'Supabase insertSong'
         );
       }
@@ -598,10 +572,7 @@ export async function deleteSong(id) {
   // server delete fails (which would cause the record to reappear on next sync).
   if (isSupabaseConfigured() && isValidUUID(id)) {
     const { error } = await withTimeout(
-      supabase
-        .from('songs')
-        .delete()
-        .eq('id', id),
+      (signal) => supabase.from('songs').delete().eq('id', id).abortSignal(signal),
       'Supabase deleteSong'
     ).catch((err) => ({ error: err }));
 
@@ -635,10 +606,7 @@ export async function getLineups() {
   if (isSupabaseConfigured()) {
     try {
       const { data, error } = await withTimeout(
-        supabase
-          .from('lineups')
-          .select('*')
-          .order('date', { ascending: false }),
+        (signal) => supabase.from('lineups').select('*').order('date', { ascending: false }).abortSignal(signal),
         'Supabase getLineups'
       );
 
@@ -671,6 +639,8 @@ export async function getLineupById(id) {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     const offlineMatch = await getOfflineLineupById(id);
     if (offlineMatch) return normalizeLineup(offlineMatch);
+    const liveCacheMatch = getLiveCachedLineups().find((lineup) => lineup.id === id);
+    if (liveCacheMatch) return normalizeLineup(liveCacheMatch);
     if (isSupabaseConfigured()) return null;
     const localMatch = getLocalLineups().find((lineup) => lineup.id === id);
     return localMatch ? normalizeLineup(localMatch) : null;
@@ -680,11 +650,7 @@ export async function getLineupById(id) {
   if (isSupabaseConfigured() && isValidUUID(id)) {
     try {
       const { data, error } = await withTimeout(
-        supabase
-          .from('lineups')
-          .select('*')
-          .eq('id', id)
-          .single(),
+        (signal) => supabase.from('lineups').select('*').eq('id', id).abortSignal(signal).single(),
         'Supabase getLineupById'
       );
       
@@ -720,46 +686,22 @@ export async function saveLineup(lineup, { notify = true } = {}) {
       const payload = toSnakeCaseLineup(nextLineup);
       debugStorage('Saving lineup payload:', payload);
       const hasSupabaseId = isValidUUID(nextLineup.id);
-      
-      // Check if lineup exists only when the app id is already a Supabase UUID.
-      const { data: existing } = hasSupabaseId
-        ? await withTimeout(
-            supabase
-              .from('lineups')
-              .select('id')
-              .eq('id', nextLineup.id)
-              .single(),
-            'Supabase findLineup'
-          )
-        : { data: null };
-      
+      const isUpdate = hasSupabaseId;
+
       let result;
-      if (existing && hasSupabaseId) {
-        // Update existing
-        debugStorage('[LineupNotifications] saveLineup is performing Supabase UPDATE for lineup id:', nextLineup.id);
+      if (hasSupabaseId) {
+        // Upsert on id — eliminates the TOCTOU race between a select and update.
         result = await withTimeout(
-          supabase
-            .from('lineups')
-            .update(payload)
-            .eq('id', nextLineup.id)
-            .select()
-            .single(),
-          'Supabase updateLineup'
+          (signal) => supabase.from('lineups').upsert(payload, { onConflict: 'id' }).select().abortSignal(signal).single(),
+          'Supabase saveLineup'
         );
       } else {
-        // Insert new
-        const insertPayload = { ...payload };
-        delete insertPayload.id;
         // BUG-008: do NOT call markLineupCreatedLocally here — the real UUID is unknown
         // until the server responds. The post-insert call below uses the confirmed UUID.
-        debugStorage('[LineupNotifications] saveLineup is performing Supabase INSERT for lineup payload:', insertPayload);
-
+        const insertPayload = { ...payload };
+        delete insertPayload.id;
         result = await withTimeout(
-          supabase
-            .from('lineups')
-            .insert(insertPayload)
-            .select()
-            .single(),
+          (signal) => supabase.from('lineups').insert(insertPayload).select().abortSignal(signal).single(),
           'Supabase insertLineup'
         );
       }
@@ -782,7 +724,7 @@ export async function saveLineup(lineup, { notify = true } = {}) {
         if (notify && result.data.id) {
           try {
             const pushResult = await sendLineupPushNotification(savedLineup, {
-              eventType: existing ? 'UPDATE' : 'INSERT',
+              eventType: isUpdate ? 'UPDATE' : 'INSERT',
             });
             return { ...savedLineup, pushResult };
           } catch (error) {
@@ -812,10 +754,7 @@ export async function deleteLineup(id) {
   // server delete fails (which would cause the record to reappear on next sync).
   if (isSupabaseConfigured() && isValidUUID(id)) {
     const { error } = await withTimeout(
-      supabase
-        .from('lineups')
-        .delete()
-        .eq('id', id),
+      (signal) => supabase.from('lineups').delete().eq('id', id).abortSignal(signal),
       'Supabase deleteLineup'
     ).catch((err) => ({ error: err }));
 

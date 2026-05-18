@@ -34,6 +34,7 @@ export function debugPushServer(message, details) {
 }
 
 export function logPushServer(message, details) {
+  if (IS_PRODUCTION) return;
   if (typeof details === 'undefined') {
     console.log(`[PushNotifications] ${message}`);
     return;
@@ -47,10 +48,23 @@ export function getRequestBody(request) {
     try {
       return JSON.parse(request.body);
     } catch {
+      console.warn('[PushNotifications] request body could not be parsed as JSON');
       return {};
     }
   }
   return typeof request.body === 'object' ? request.body : {};
+}
+
+export function requireAdminToken(request, response) {
+  const token = process.env.PUSH_ADMIN_TOKEN;
+  if (!token) return false;
+  const auth = getHeader(request, 'authorization') || getHeader(request, 'x-admin-token');
+  const provided = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
+  if (provided !== token) {
+    response.status(401).json({ error: 'Unauthorized.' });
+    return true;
+  }
+  return false;
 }
 
 export function getHeader(request, name) {
@@ -783,10 +797,12 @@ export async function createLineupNotificationRecords(supabase, payload, subscri
 
   if (subscriptions.length && !deliveredCount) return 0;
 
+  const recordType = notification.notificationType || (notification.type === 'lineup' ? 'lineup_created' : notification.type) || 'lineup_created';
+
   const existing = await supabase
     .from('lineup_notifications')
     .select('id')
-    .eq('type', notification.type || 'lineup')
+    .eq('type', recordType)
     .eq('lineup_id', lineupId)
     .maybeSingle();
 
@@ -798,7 +814,7 @@ export async function createLineupNotificationRecords(supabase, payload, subscri
   }
 
   const record = {
-    type: notification.type || 'lineup',
+    type: recordType,
     lineup_id: lineupId,
     title: notification.title || 'New lineup added',
     body: notification.body || 'A new worship lineup has been posted.',

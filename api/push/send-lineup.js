@@ -5,11 +5,13 @@ import {
   getRequestBody,
   getSupabaseAdmin,
   loadLineup,
+  requireAdminToken,
   sendPushPayload,
 } from '../_push.js';
 
 export default async function handler(request, response) {
   if (!allowMethods(request, response, ['POST'])) return;
+  if (requireAdminToken(request, response)) return;
 
   const supabase = getSupabaseAdmin();
   if (!supabase) {
@@ -41,6 +43,7 @@ export default async function handler(request, response) {
     const safeTimestamp = String(createdAt).replace(/[^a-z0-9]/gi, '');
     const payload = createPushPayload({
       type: 'lineup',
+      notificationType: payloadType,
       title: isInsert ? 'New lineup added' : 'Lineup updated',
       body: formatLineupBody(lineup),
       url: url || `/lineups/${lineup.id}`,

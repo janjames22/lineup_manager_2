@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useToast } from './useToast';
-import { supabase, isSupabaseConfigured } from '../utils/supabase';
 import {
   consumeLocalLineupCreation,
   createLineupNotification,
@@ -17,7 +16,6 @@ import {
   setLineupAppBadge,
 } from '../utils/appBadge';
 
-const LINEUP_NOTIFICATION_CHANNEL = 'lineup-notifications';
 const IS_DEV = import.meta.env.DEV;
 
 function debugLineupNotifications(message, details) {
@@ -33,8 +31,6 @@ export default function useLineupNotifications() {
   const [notifications, setNotifications] = useState(readStoredLineupNotifications);
   const [bannerNotification, setBannerNotification] = useState(null);
   const [soundEnabled, setSoundEnabledState] = useState(readNotificationSoundEnabled);
-  const channelRef = useRef(null);
-  const showToastErrorRef = useRef(false);
   const showToastRef = useRef(() => {});
   const notifiedNotificationIdsRef = useRef(new Set(readStoredLineupNotifications().map((notification) => notification?.id).filter(Boolean)));
   const soundEnabledRef = useRef(soundEnabled);
@@ -67,12 +63,25 @@ export default function useLineupNotifications() {
     } = options;
 
     if (!notification?.id || !notification?.lineupId) return false;
+
+    // Primary dedup by full notification ID.
     if (notifiedNotificationIdsRef.current.has(notification.id)) {
       debugLineupNotifications('notification skipped because id already exists', notification.id);
       return false;
     }
 
+    // Secondary cross-channel dedup: Realtime and push can deliver the same
+    // event with slightly different timestamps, producing different IDs. Key
+    // by (lineupId, eventType) so a duplicate from either channel is dropped.
+    const eventSlug = String(notification.type || '').replace('lineup_', '') || 'event';
+    const channelDedupeKey = `${notification.lineupId}:${eventSlug}`;
+    if (notifiedNotificationIdsRef.current.has(channelDedupeKey)) {
+      debugLineupNotifications('notification skipped by cross-channel dedup', channelDedupeKey);
+      return false;
+    }
+
     notifiedNotificationIdsRef.current.add(notification.id);
+    notifiedNotificationIdsRef.current.add(channelDedupeKey);
     updateNotifications((current) => {
       const existingIds = new Set(current.map((item) => item.id).filter(Boolean));
       if (existingIds.has(notification.id)) return current;
@@ -188,70 +197,6 @@ export default function useLineupNotifications() {
     return addNotification(notification);
   }, [addNotification]);
 
-  useEffect(() => {
-    debugLineupNotifications('mounting subscription');
-
-    if (!isSupabaseConfigured()) {
-      console.warn('[LineupNotifications] Existing Supabase client is not configured. Subscription was not created.');
-      return undefined;
-    }
-
-    if (channelRef.current) {
-      console.warn('[LineupNotifications] Subscription already mounted. Reusing existing channel.');
-      return undefined;
-    }
-
-    const channel = supabase
-      .channel(LINEUP_NOTIFICATION_CHANNEL)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'lineups',
-        },
-        (payload) => {
-          debugLineupNotifications('realtime event received', payload);
-          debugLineupNotifications('eventType', payload.eventType);
-          debugLineupNotifications('new row', payload.new);
-          debugLineupNotifications('old row', payload.old);
-
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            handleLineupChange(payload.new, payload.eventType);
-            return;
-          }
-
-          debugLineupNotifications('realtime event ignored because it is not INSERT or UPDATE');
-        }
-      )
-      .subscribe((status) => {
-        debugLineupNotifications('subscription status', status);
-
-        // BUG-028: reset flag on reconnect so the next disconnection shows a toast again
-        if (status === 'SUBSCRIBED') {
-          showToastErrorRef.current = false;
-        }
-
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('[LineupNotifications] Realtime channel is not healthy. Check Supabase client env and Realtime delivery.', { status });
-          if (!showToastErrorRef.current) {
-            showToastErrorRef.current = true;
-            showToastRef.current('Lineup notifications are not connected. Check Realtime delivery.', 'error', 7000);
-          }
-        }
-      });
-
-    channelRef.current = channel;
-
-    return () => {
-      debugLineupNotifications('cleaning up subscription');
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
-    };
-  }, [handleLineupChange]);
-
   const dismissBannerNotification = useCallback(() => {
     setBannerNotification(null);
   }, []);
@@ -264,6 +209,7 @@ export default function useLineupNotifications() {
     clearNotification,
     bannerNotification,
     dismissBannerNotification,
+    handleLineupChange,
     receivePushNotification,
     soundEnabled,
     setSoundEnabled,

@@ -22,6 +22,7 @@ import { useToast } from './hooks/useToast';
 import useLineupNotifications from './hooks/useLineupNotifications';
 import ShareAppQrModal from './components/ShareAppQrModal';
 import { unlockNotificationAudio } from './utils/notificationAudio';
+import { LineupRealtimeContext } from './contexts/LineupRealtimeContext';
 
 const UPDATE_CHECK_TIMEOUT_MS = 5000;
 const FOREGROUND_UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
@@ -111,6 +112,7 @@ export default function App() {
     clearNotification: clearLineupNotification,
     bannerNotification: lineupBannerNotification,
     dismissBannerNotification: dismissLineupBannerNotification,
+    handleLineupChange,
     receivePushNotification,
     soundEnabled: lineupNotificationSoundEnabled,
     setSoundEnabled: setLineupNotificationSoundEnabled,
@@ -594,22 +596,24 @@ export default function App() {
       )}
       
       <div className="mx-auto w-full max-w-7xl min-w-0">
-        <Routes>
-          <Route path="/" element={<Dashboard onShareApp={() => setShareQrOpen(true)} />} />
-          <Route path="/songs" element={<SongLibrary />} />
-          <Route path="/songs/new" element={<SongForm />} />
-          <Route path="/songs/add" element={<Navigate to="/songs/new" replace />} />
-          <Route path="/songs/:id" element={<SongDetail />} />
-          <Route path="/songs/:id/edit" element={<SongForm />} />
-          <Route path="/lyrics-monitor/:songId" element={<LyricsMonitorPage />} />
-          <Route path="/lineups" element={<LineupList />} />
-          <Route path="/lineups/new" element={<LineupForm />} />
-          <Route path="/lineups/:id" element={<LineupView />} />
-          <Route path="/lineups/:id/edit" element={<LineupForm />} />
-          <Route path="/lineups/:id/monitor" element={<LyricsMonitorPage />} />
-          <Route path="/lineups/:id/print" element={<PrintExportView />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <LineupRealtimeContext.Provider value={handleLineupChange}>
+          <Routes>
+            <Route path="/" element={<Dashboard onShareApp={() => setShareQrOpen(true)} />} />
+            <Route path="/songs" element={<SongLibrary />} />
+            <Route path="/songs/new" element={<SongForm />} />
+            <Route path="/songs/add" element={<Navigate to="/songs/new" replace />} />
+            <Route path="/songs/:id" element={<SongDetail />} />
+            <Route path="/songs/:id/edit" element={<SongForm />} />
+            <Route path="/lyrics-monitor/:songId" element={<LyricsMonitorPage />} />
+            <Route path="/lineups" element={<LineupList />} />
+            <Route path="/lineups/new" element={<LineupForm />} />
+            <Route path="/lineups/:id" element={<LineupView />} />
+            <Route path="/lineups/:id/edit" element={<LineupForm />} />
+            <Route path="/lineups/:id/monitor" element={<LyricsMonitorPage />} />
+            <Route path="/lineups/:id/print" element={<PrintExportView />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </LineupRealtimeContext.Provider>
       </div>
 
       {showAppChrome && (
