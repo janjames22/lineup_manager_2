@@ -146,9 +146,23 @@ export function getVapidPublicKey() {
 export function getVapidConfig() {
   const publicKey = getVapidPublicKey();
   const privateKey = process.env.VAPID_PRIVATE_KEY;
-  const subject = process.env.VAPID_SUBJECT || 'mailto:admin@example.com';
+  // BUG-014: VAPID_SUBJECT must be a real mailto: address. In production, the
+  // placeholder breaks deliverability on some push services and exposes the
+  // wrong identity. Throw in production; warn + fall back only in development.
+  const subject = process.env.VAPID_SUBJECT;
 
   if (!publicKey || !privateKey) return null;
+
+  if (!subject) {
+    if (IS_PRODUCTION) {
+      const error = new Error('VAPID_SUBJECT environment variable is required. Set it to mailto:your@email.com in Vercel project settings.');
+      error.statusCode = 500;
+      throw error;
+    }
+    console.warn('[PushNotifications] VAPID_SUBJECT is not set — using placeholder. Set VAPID_SUBJECT=mailto:your@email.com for production.');
+    return { publicKey, privateKey, subject: 'mailto:admin@example.com' };
+  }
+
   return { publicKey, privateKey, subject };
 }
 

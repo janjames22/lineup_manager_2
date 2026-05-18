@@ -2,7 +2,11 @@ import { Apple, Copy, Download, QrCode, Share2, Smartphone, X } from 'lucide-rea
 import { useEffect, useMemo, useState } from 'react';
 import { createQrSvg } from '../utils/qrCode';
 
-export const APP_SHARE_URL = 'https://ccfbc-lineup-manager-code.vercel.app';
+// BUG-020: read from env var so any deployment generates the correct QR code.
+// Falls back to the current origin at runtime so localhost dev still works.
+export const APP_SHARE_URL =
+  import.meta.env.VITE_APP_URL ||
+  (typeof window !== 'undefined' ? window.location.origin : 'https://ccfbc-lineup-manager-code.vercel.app');
 
 export default function ShareAppQrModal({ open, onClose }) {
   const [copyStatus, setCopyStatus] = useState('');

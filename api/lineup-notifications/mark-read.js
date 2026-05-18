@@ -27,6 +27,13 @@ export default async function handler(request, response) {
     return;
   }
 
+  // BUG-013: when a notificationId is given, require subscriptionEndpoint or
+  // deviceId so only the owning device can mark a notification read.
+  if (notificationId && !subscriptionEndpoint && !deviceId) {
+    response.status(400).json({ error: 'Provide subscriptionEndpoint or deviceId to verify ownership.' });
+    return;
+  }
+
   if (notificationId && !UUID_PATTERN.test(String(notificationId))) {
     response.status(400).json({ error: 'Invalid notificationId.' });
     return;
@@ -48,6 +55,9 @@ export default async function handler(request, response) {
 
   if (notificationId) {
     query = query.eq('id', notificationId);
+    // BUG-013: scope the update to the owning device to prevent cross-user manipulation.
+    if (subscriptionEndpoint) query = query.eq('subscription_endpoint', subscriptionEndpoint);
+    else if (deviceId) query = query.eq('device_id', deviceId);
   } else {
     if (lineupId) query = query.eq('lineup_id', lineupId);
     if (subscriptionEndpoint) query = query.eq('subscription_endpoint', subscriptionEndpoint);

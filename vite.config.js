@@ -31,6 +31,11 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(APP_VERSION),
     __APP_BUILD_VERSION__: JSON.stringify(BUILD_VERSION),
   },
+  // BUG-001: web-push is Node.js-only (used in api/ serverless functions).
+  // Exclude it from Vite's pre-bundling so it is never pulled into the frontend.
+  optimizeDeps: {
+    exclude: ['web-push'],
+  },
   plugins: [
     react(),
     tailwindcss(),
@@ -56,6 +61,12 @@ export default defineConfig({
             sizes: '192x192',
             type: 'image/png',
             purpose: 'any'
+          },
+          {
+            src: '/icon-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable'
           },
           {
             src: '/icon-512.png',

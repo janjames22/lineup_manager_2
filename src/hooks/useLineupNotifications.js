@@ -227,6 +227,11 @@ export default function useLineupNotifications() {
       .subscribe((status) => {
         debugLineupNotifications('subscription status', status);
 
+        // BUG-028: reset flag on reconnect so the next disconnection shows a toast again
+        if (status === 'SUBSCRIBED') {
+          showToastErrorRef.current = false;
+        }
+
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           console.error('[LineupNotifications] Realtime channel is not healthy. Check Supabase client env and Realtime delivery.', { status });
           if (!showToastErrorRef.current) {

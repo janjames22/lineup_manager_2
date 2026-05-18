@@ -290,9 +290,10 @@ export default function PhoneNotificationsButton() {
           To receive iPhone lock-screen notifications, open this site in Safari, tap Share, tap Add to Home Screen, then open the app from the Home Screen icon and tap Enable Notifications.
         </p>
       )}
+      {/* BUG-021: use the canonical app URL from env so this message works on any deployment. */}
       {status.isVercelPreview && (
         <p className="text-xs font-semibold text-amber-300">
-          Push subscriptions are tied to this exact URL. Delete old preview Home Screen apps and install from ccfbc-lineup-manager-code.vercel.app.
+          Push subscriptions are tied to this exact URL. Delete old preview Home Screen apps and install from {import.meta.env.VITE_APP_URL || window.location.hostname}.
         </p>
       )}
 

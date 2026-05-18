@@ -155,7 +155,7 @@ export default function LineupForm() {
           {error && <p className="text-sm font-semibold text-red-400">{error}</p>}
           <section className="panel">
             <h2 className="section-title">Service Details</h2>
-            <div className="mt-4 grid gap-4 md:grid-cols-3">
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 md:grid-cols-3">
               <label><span className="label">Date *</span><input className="input" type="date" required value={lineup.date} onChange={(event) => update('date', event.target.value)} /></label>
               <label><span className="label">Service Time</span><input className="input" value={lineup.serviceTime} onChange={(event) => update('serviceTime', event.target.value)} /></label>
               <label><span className="label">Worship Leader</span><input className="input" value={lineup.worshipLeader} onChange={(event) => update('worshipLeader', event.target.value)} /></label>
@@ -187,15 +187,18 @@ export default function LineupForm() {
               {lineup.songs.map((song, index) => (
                 <div key={`${song.id || song.songId}-${index}`} className="w-full min-w-0 rounded-xl border border-slate-800 bg-slate-950/80 p-3 shadow-inner sm:p-4">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <h3 className="text-wrap-anywhere min-w-0 font-bold text-white">{index + 1}. {song.title}</h3>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="lineup-song-number shrink-0">{index + 1}</span>
+                      <h3 className="text-wrap-anywhere min-w-0 font-bold text-white">{song.title}</h3>
+                    </div>
                     <div className="flex flex-wrap gap-2">
-                      <button className="icon-button" type="button" onClick={() => moveSong(index, -1)} title="Move up"><ArrowUp size={18} aria-hidden="true" /></button>
-                      <button className="icon-button" type="button" onClick={() => moveSong(index, 1)} title="Move down"><ArrowDown size={18} aria-hidden="true" /></button>
-                      <button className="icon-button danger" type="button" onClick={() => removeSong(index)} title="Remove song"><Trash2 size={18} aria-hidden="true" /></button>
+                      <button className="icon-button" type="button" onClick={() => moveSong(index, -1)} aria-label="Move song up"><ArrowUp size={18} aria-hidden="true" /></button>
+                      <button className="icon-button" type="button" onClick={() => moveSong(index, 1)} aria-label="Move song down"><ArrowDown size={18} aria-hidden="true" /></button>
+                      <button className="icon-button danger" type="button" onClick={() => removeSong(index)} aria-label="Remove song"><Trash2 size={18} aria-hidden="true" /></button>
                     </div>
                   </div>
                   <div className="mt-3 grid gap-3 md:grid-cols-[0.4fr_1fr]">
-                    <select className="input" value={song.selectedKey} onChange={(event) => updateLineupSong(index, 'selectedKey', event.target.value)}>
+                    <select className="input border-amber-800/30 bg-amber-950/10 text-amber-300 focus:border-amber-500/40" value={song.selectedKey} onChange={(event) => updateLineupSong(index, 'selectedKey', event.target.value)}>
                       {KEYS.map((key) => <option key={key} value={key}>{key}</option>)}
                     </select>
                     <input className="input" value={song.notes} onChange={(event) => updateLineupSong(index, 'notes', event.target.value)} placeholder="Song notes" />
@@ -216,7 +219,7 @@ export default function LineupForm() {
             <label><span className="label">General Reminders</span><textarea className="textarea" value={lineup.generalNotes} onChange={(event) => update('generalNotes', event.target.value)} /></label>
           </section>
 
-          <button className="btn-primary" type="submit" disabled={saving || isOffline}>
+          <button className="btn-primary w-full sm:w-auto" type="submit" disabled={saving || isOffline}>
             {isOffline ? 'Editing requires internet connection' : saving ? 'Saving...' : id ? 'Update Lineup' : 'Save Lineup'}
           </button>
         </form>

@@ -71,15 +71,15 @@ export default function SongDetail() {
         title={song.title}
         description={song.artist || 'No artist listed'}
         actions={
-          <>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
             {fromSource === 'lineup' && lineupId && (
-              <Link className="btn-secondary" to={`/lineups/${lineupId}`}>
+              <Link className="btn-secondary col-span-2" to={`/lineups/${lineupId}`}>
                 <ArrowLeft size={18} aria-hidden="true" /> Return to Lineup
               </Link>
             )}
             <Link className="btn-secondary" to="/songs"><ArrowLeft size={18} aria-hidden="true" /> Songs</Link>
             {song.youtubeLink && (
-              <a className="btn-secondary text-red-600 hover:border-red-200 hover:bg-red-50" href={song.youtubeLink} target="_blank" rel="noopener noreferrer">
+              <a className="btn-secondary text-red-400 hover:border-red-900/50 hover:bg-red-950/30" href={song.youtubeLink} target="_blank" rel="noopener noreferrer">
                 <Youtube size={18} aria-hidden="true" /> YouTube
               </a>
             )}
@@ -87,7 +87,7 @@ export default function SongDetail() {
             <Link className="btn-secondary" to={`/songs/${song.id}/edit`}><Pencil size={18} aria-hidden="true" /> Edit</Link>
             <button className="btn-danger" type="button" onClick={remove}><Trash2 size={18} aria-hidden="true" /> Delete</button>
             <OfflineItemButton item={song} offline={offlineSongs} type="song" />
-          </>
+          </div>
         }
       />
 
@@ -101,7 +101,7 @@ export default function SongDetail() {
         </div>
         <div className="control-row mt-6 border-t border-slate-800/50 pt-6">
           <button className="btn-secondary min-w-10 flex-1 !text-xl min-[380px]:flex-none" type="button" onClick={() => setTransposeAmount((value) => Math.max(-12, value - 1))}>-</button>
-          <div className="flex min-w-24 flex-1 flex-col items-center justify-center rounded-xl bg-slate-950 p-2 ring-1 ring-white/10 shadow-inner min-[380px]:flex-none sm:min-w-32">
+          <div className="flex min-w-24 flex-1 flex-col items-center justify-center rounded-xl bg-slate-950 p-3 ring-1 ring-blue-500/20 shadow-inner min-[380px]:flex-none sm:min-w-32">
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Transpose</span>
             <span className="text-xl font-black text-white">{transposeAmount > 0 ? `+${transposeAmount}` : transposeAmount}</span>
           </div>
@@ -125,7 +125,7 @@ export default function SongDetail() {
             <h2 className="section-title">Lyrics Monitor Cues</h2>
             <div className="mt-5 space-y-4">
               {song.lyricsMonitor.length ? song.lyricsMonitor.map((section, index) => (
-                <div key={`${section.section}-${index}`} className="rounded-2xl bg-slate-950/40 p-5 border border-slate-800/50">
+                <div key={`${section.section}-${index}`} className="rounded-2xl bg-slate-950/40 p-5 border border-t-2 border-slate-800/50 border-t-blue-500/25">
                   <p className="text-xs font-black uppercase tracking-widest text-blue-400">{section.section}</p>
                   <p className="mt-2.5 whitespace-pre-wrap break-words text-base font-medium text-slate-200">{section.text || 'No cue text.'}</p>
                   {section.vocalNotes && <p className="mt-3 text-sm font-bold text-blue-300 flex items-center gap-2">
@@ -150,7 +150,10 @@ export default function SongDetail() {
 
 function Info({ label, value, highlight = false }) {
   return (
-    <div className="rounded-xl bg-slate-950/30 p-4 border border-slate-800/50">
+    <div className={`rounded-xl p-4 border ${highlight
+      ? 'border-blue-500/30 bg-blue-950/20 shadow-[inset_0_1px_0_rgba(96,165,250,0.08)]'
+      : 'border-slate-800/50 bg-slate-950/30'
+    }`}>
       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{label}</p>
       <p className={`mt-1 text-xl font-black ${highlight ? 'text-blue-400' : 'text-white'}`}>{value}</p>
     </div>

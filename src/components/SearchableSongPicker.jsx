@@ -260,6 +260,7 @@ export default function SearchableSongPicker({
           aria-autocomplete="list"
           aria-controls={listboxId}
           aria-expanded={open}
+          aria-haspopup="listbox"
           className="input pr-11 pl-10"
           disabled={disabled}
           onChange={handleInputChange}

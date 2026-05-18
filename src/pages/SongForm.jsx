@@ -388,8 +388,8 @@ export default function SongForm() {
           </div>
 
           <label>
-            <span className="label">Chord Chart</span>
-            <textarea className="textarea min-h-[18rem] font-mono sm:min-h-72" value={song.chordChart || ''} onChange={(event) => update('chordChart', event.target.value)} placeholder={'Intro:\nC  G  Am  F\n\nVerse 1:\n[Team-approved chord chart here]'} />
+            <span className="label flex items-center gap-2">Chord Chart <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-slate-400">PRE</span></span>
+            <textarea className="chord-textarea sm:min-h-72" value={song.chordChart || ''} onChange={(event) => update('chordChart', event.target.value)} placeholder={'Intro:\nC  G  Am  F\n\nVerse 1:\n[Team-approved chord chart here]'} />
           </label>
 
           <label>
@@ -418,7 +418,7 @@ export default function SongForm() {
                 .filter((item) => item.itemIndex !== index);
 
               return (
-                <div key={index} className="w-full min-w-0 rounded-xl border border-slate-800 bg-slate-950 p-3 shadow-inner sm:p-4">
+                <div key={index} className="w-full min-w-0 rounded-xl border border-l-4 border-slate-800 border-l-indigo-500/40 bg-slate-950 p-3 shadow-inner sm:p-4">
                   <div className="mb-3 grid gap-3">
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label>
@@ -460,7 +460,7 @@ export default function SongForm() {
                       </label>
                     )}
 
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <div className="flex flex-wrap gap-2 sm:grid sm:grid-cols-3">
                       <button className="btn-secondary w-full !px-3" type="button" onClick={() => duplicateSection(index)}>
                         <Copy size={16} aria-hidden="true" /> Duplicate
                       </button>
@@ -480,16 +480,18 @@ export default function SongForm() {
             })}
           </div>
 
+        </aside>
+
+        <div className="flex flex-col gap-3 lg:col-span-2">
           {saveStatusConfig && (
-            <div className={`rounded-xl border px-4 py-3 text-sm font-bold ${saveStatusConfig.classes}`}>
+            <div className={`rounded-xl border-l-4 px-4 py-3 text-sm font-bold ${saveStatusConfig.classes}`}>
               {saveStatusConfig.label}
             </div>
           )}
-
-          <button className="btn-primary w-full justify-center" type="submit" disabled={saving || isOffline}>
+          <button className="btn-primary w-full justify-center sm:w-auto" type="submit" disabled={saving || isOffline}>
             {isOffline ? 'Editing requires internet connection' : saving ? 'Saving...' : id ? 'Update Song' : 'Save Song'}
           </button>
-        </aside>
+        </div>
       </form>
     </main>
   );

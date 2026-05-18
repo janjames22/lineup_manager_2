@@ -41,17 +41,21 @@ export default function InstallBanner() {
     }
 
     // Handle standard PWA install prompt (Android / Desktop Chrome)
+    // BUG-022: track the timer ID so it can be cleared if the component unmounts
+    // before the 2-second delay fires.
+    let delayTimer = null;
+
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      // Show after a small delay
-      setTimeout(() => setIsVisible(true), 2000);
+      delayTimer = setTimeout(() => setIsVisible(true), 2000);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      if (delayTimer) clearTimeout(delayTimer);
     };
   }, []);
 

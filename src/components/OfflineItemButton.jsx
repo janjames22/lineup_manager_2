@@ -27,7 +27,8 @@ export default function OfflineItemButton({
 }) {
   const { showToast } = useToast();
   const copy = COPY[type] || COPY.song;
-  const saved = offline.isSaved(item.id);
+  // BUG-023: guard against undefined item.id so isSaved doesn't silently return false.
+  const saved = item?.id ? offline.isSaved(item.id) : false;
   const busy = offline.isBusy(item.id);
   const outdated = saved && offline.isOutdated(item);
 

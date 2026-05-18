@@ -30,11 +30,13 @@ const UPDATE_RELOAD_MARKER_KEY = 'pwa-update-reload-reason';
 const CURRENT_APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev';
 const CURRENT_BUILD_VERSION = typeof __APP_BUILD_VERSION__ === 'string' ? __APP_BUILD_VERSION__ : 'dev';
 const VERSION_URL = '/version.json';
+// BUG-004: align with actual cache names produced by the service worker.
+// sw.js names caches as `lineup-manager-{version}` (app shell),
+// `lineup-manager-{version}-assets`, `lineup-manager-{version}-images`,
+// and Workbox produces `lineup-manager-precache-{version}` / `lineup-manager-runtime-{version}`.
+// A single `lineup-manager-` prefix covers all of them.
 const UPDATE_CACHE_PREFIXES = [
-  'lineup-manager-app-shell-',
-  'lineup-manager-assets-',
-  'lineup-manager-precache-',
-  'lineup-manager-runtime-',
+  'lineup-manager-',
   'workbox-precache',
   'workbox-runtime',
 ];
@@ -88,6 +90,7 @@ export default function App() {
   const navigate = useNavigate();
   const registrationRef = useRef(null);
   const lastUpdateCheckAtRef = useRef(0);
+  const lineupNotificationsRef = useRef([]);
   const waitingWorkerLoggedRef = useRef(false);
   const reloadTriggeredRef = useRef(false);
   const routeScrollFrameRef = useRef(null);
@@ -142,7 +145,8 @@ export default function App() {
     return versionInfo;
   }, []);
 
-  const markWaitingWorkerAvailable = () => {
+  // BUG-005: memoize so the onRegisteredSW closure always holds the latest reference.
+  const markWaitingWorkerAvailable = useCallback(() => {
     setManualNeedUpdate(true);
     setUpdateStatus('found');
     setUpdateMessage('Update found.');
@@ -153,7 +157,7 @@ export default function App() {
       logPwa('new service worker waiting');
       waitingWorkerLoggedRef.current = true;
     }
-  };
+  }, [refreshAvailableVersionInfo]);
 
   const attachWorkerLifecycleLogs = (registration, worker) => {
     if (!worker || worker.__lineupManagerObserved) return;
@@ -251,6 +255,12 @@ export default function App() {
     };
   }, []);
 
+  // BUG-006: keep lineupNotifications in a ref so the message listener is only
+  // registered once and never re-registers on every notification state change.
+  useEffect(() => {
+    lineupNotificationsRef.current = lineupNotifications;
+  }, [lineupNotifications]);
+
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return undefined;
 
@@ -271,7 +281,7 @@ export default function App() {
       try {
         const targetUrl = new URL(event.data.url || '/lineups', window.location.origin);
         if (targetUrl.origin !== window.location.origin) return;
-        const matchingNotification = lineupNotifications.find((notification) => (
+        const matchingNotification = lineupNotificationsRef.current.find((notification) => (
           !notification.read
           && (
             notification.id === event.data.notificationId
@@ -289,7 +299,7 @@ export default function App() {
     return () => {
       navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
     };
-  }, [lineupNotifications, markSingleLineupNotificationRead, navigate, receivePushNotification, showToast]);
+  }, [markSingleLineupNotificationRead, navigate, receivePushNotification, showToast]);
 
   useEffect(() => {
     if (!lineupBannerNotification) return undefined;
@@ -442,8 +452,8 @@ export default function App() {
       }
 
       setUpdateStatus('latest');
-      setUpdateMessage('You’re already using the latest version.');
-      showToast('You’re already using the latest version.', 'info', 4500);
+      setUpdateMessage("You're already using the latest version.");
+      showToast("You're already using the latest version.", 'info', 4500);
     } catch (error) {
       console.error('Manual update check failed:', error);
       setUpdateStatus('failed');

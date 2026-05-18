@@ -428,7 +428,7 @@ export function normalizeLineup(lineup = {}) {
 
 export async function getSongs() {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    console.log('App is offline, loading explicitly saved songs from offline cache');
+    debugStorage('App is offline, loading explicitly saved songs from offline cache');
     const offlineSongs = await getOfflineSongs();
     if (offlineSongs && offlineSongs.length > 0) {
       return offlineSongs.map(normalizeSong).sort((a, b) => a.title.localeCompare(b.title));
@@ -439,7 +439,7 @@ export async function getSongs() {
 
   // Try Supabase first
   if (isSupabaseConfigured()) {
-    console.log('Loading songs from Supabase...');
+    debugStorage('Loading songs from Supabase...');
     try {
       const { data, error } = await withTimeout(
         supabase
@@ -448,13 +448,13 @@ export async function getSongs() {
           .order('title', { ascending: true }),
         'Supabase getSongs'
       );
-      
+
       if (error) {
         console.error('Supabase getSongs error:', error.message);
         const cachedSongs = getLiveCachedSongs();
         if (cachedSongs.length) return cachedSongs;
       } else if (Array.isArray(data)) {
-        console.log('Songs loaded from Supabase:', data.length);
+        debugStorage('Songs loaded from Supabase:', data.length);
         const camelSongs = data.map(toCamelCaseSong).filter(Boolean);
         saveLiveSongsCache(camelSongs);
         return camelSongs;
@@ -465,9 +465,9 @@ export async function getSongs() {
       if (cachedSongs.length) return cachedSongs;
     }
   } else {
-    console.log('Supabase not configured, using localStorage fallback for getSongs');
+    debugStorage('Supabase not configured, using localStorage fallback for getSongs');
   }
-  
+
   // Fallback to localStorage
   return getLocalSongs();
 }
@@ -481,6 +481,12 @@ export async function getSongById(id) {
     if (isSupabaseConfigured()) return null;
     const localMatch = getLocalSongs().find((song) => song.id === id);
     return localMatch ? normalizeSong(localMatch) : null;
+  }
+
+  // BUG-011: warn when Supabase is configured but the id is not a UUID —
+  // prevents silent fallthrough that can mask data integrity issues.
+  if (isSupabaseConfigured() && !isValidUUID(id)) {
+    console.warn('[Storage] getSongById received a non-UUID id; skipping Supabase and falling back to localStorage.', id);
   }
 
   // Try Supabase first
@@ -514,13 +520,13 @@ export async function getSongById(id) {
 
 export async function saveSong(song) {
   const nextSong = normalizeSong(song);
-  console.log('Saving song payload:', nextSong);
-  
+  debugStorage('Saving song payload:', nextSong);
+
   // Try Supabase first
   if (isSupabaseConfigured()) {
     try {
       const snakeSong = toSnakeCaseSong(nextSong);
-      console.log('Saving to Supabase with snake_case fields:', snakeSong);
+      debugStorage('Saving to Supabase with snake_case fields:', snakeSong);
       const hasSupabaseId = isValidUUID(nextSong.id);
       
       // Check if song exists only when the app id is already a Supabase UUID.
@@ -564,10 +570,9 @@ export async function saveSong(song) {
       
       if (result.error) {
         console.error('Supabase saveSong error:', result.error.message);
-        // Don't fall through to localStorage - throw error to show in UI
         throw new Error(result.error.message);
       } else if (result.data) {
-        console.log('Supabase saved song:', result.data);
+        debugStorage('Supabase saved song:', result.data);
         const savedSong = toCamelCaseSong(result.data);
         const cachedSongs = getLiveCachedSongs();
         const nextCache = cachedSongs.some((item) => item.id === savedSong.id)
@@ -578,11 +583,10 @@ export async function saveSong(song) {
       }
     } catch (err) {
       console.error('Supabase saveSong failed:', err);
-      // Re-throw to show in UI
       throw err;
     }
   } else {
-    console.log('Supabase not configured, using localStorage fallback for saveSong');
+    debugStorage('Supabase not configured, using localStorage fallback for saveSong');
   }
   
   // Fallback to localStorage
@@ -590,26 +594,23 @@ export async function saveSong(song) {
 }
 
 export async function deleteSong(id) {
-  // Try Supabase first
+  // BUG-009: propagate Supabase errors so local cache is not cleared when the
+  // server delete fails (which would cause the record to reappear on next sync).
   if (isSupabaseConfigured() && isValidUUID(id)) {
-    try {
-      const { error } = await withTimeout(
-        supabase
-          .from('songs')
-          .delete()
-          .eq('id', id),
-        'Supabase deleteSong'
-      );
-      
-      if (error) {
-        console.error('Supabase deleteSong error:', error.message);
-      }
-    } catch (err) {
-      console.error('Supabase deleteSong failed:', err);
+    const { error } = await withTimeout(
+      supabase
+        .from('songs')
+        .delete()
+        .eq('id', id),
+      'Supabase deleteSong'
+    ).catch((err) => ({ error: err }));
+
+    if (error) {
+      console.error('Supabase deleteSong failed:', error.message || error);
+      throw error instanceof Error ? error : new Error(error.message || 'Failed to delete song.');
     }
   }
-  
-  // Always fallback to localStorage as well
+
   deleteLocalSong(id);
   saveLiveSongsCache(getLiveCachedSongs().filter((song) => song.id !== id));
   return true;
@@ -621,7 +622,7 @@ export async function deleteSong(id) {
 
 export async function getLineups() {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    console.log('App is offline, loading explicitly saved lineups from offline cache');
+    debugStorage('App is offline, loading explicitly saved lineups from offline cache');
     const offlineLineups = await getOfflineLineups();
     if (offlineLineups && offlineLineups.length > 0) {
       return offlineLineups.map(normalizeLineup).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -640,13 +641,13 @@ export async function getLineups() {
           .order('date', { ascending: false }),
         'Supabase getLineups'
       );
-      
+
       if (error) {
         console.error('Supabase getLineups error:', error.message);
         const cachedLineups = getLiveCachedLineups();
         if (cachedLineups.length) return cachedLineups;
       } else if (Array.isArray(data)) {
-        console.log("Loaded lineups:", data);
+        debugStorage('Loaded lineups from Supabase:', data.length);
         const camelLineups = data.map(toCamelCaseLineup).filter(Boolean);
         saveLiveLineupsCache(camelLineups);
         return camelLineups;
@@ -657,10 +658,10 @@ export async function getLineups() {
       if (cachedLineups.length) return cachedLineups;
     }
   }
-  
+
   // Fallback to localStorage
   const localLineups = getLocalLineups();
-  console.log("Loaded lineups:", localLineups);
+  debugStorage('Loaded lineups from localStorage:', localLineups.length);
   return localLineups;
 }
 
@@ -717,7 +718,7 @@ export async function saveLineup(lineup, { notify = true } = {}) {
   if (isSupabaseConfigured()) {
     try {
       const payload = toSnakeCaseLineup(nextLineup);
-      console.log("Saving lineup payload:", payload);
+      debugStorage('Saving lineup payload:', payload);
       const hasSupabaseId = isValidUUID(nextLineup.id);
       
       // Check if lineup exists only when the app id is already a Supabase UUID.
@@ -749,7 +750,8 @@ export async function saveLineup(lineup, { notify = true } = {}) {
         // Insert new
         const insertPayload = { ...payload };
         delete insertPayload.id;
-        markLineupCreatedLocally(insertPayload);
+        // BUG-008: do NOT call markLineupCreatedLocally here — the real UUID is unknown
+        // until the server responds. The post-insert call below uses the confirmed UUID.
         debugStorage('[LineupNotifications] saveLineup is performing Supabase INSERT for lineup payload:', insertPayload);
 
         result = await withTimeout(
@@ -806,26 +808,23 @@ export async function saveLineup(lineup, { notify = true } = {}) {
 }
 
 export async function deleteLineup(id) {
-  // Try Supabase first
+  // BUG-009: propagate Supabase errors so local cache is not cleared when the
+  // server delete fails (which would cause the record to reappear on next sync).
   if (isSupabaseConfigured() && isValidUUID(id)) {
-    try {
-      const { error } = await withTimeout(
-        supabase
-          .from('lineups')
-          .delete()
-          .eq('id', id),
-        'Supabase deleteLineup'
-      );
-      
-      if (error) {
-        console.error('Supabase deleteLineup error:', error.message);
-      }
-    } catch (err) {
-      console.error('Supabase deleteLineup failed:', err);
+    const { error } = await withTimeout(
+      supabase
+        .from('lineups')
+        .delete()
+        .eq('id', id),
+      'Supabase deleteLineup'
+    ).catch((err) => ({ error: err }));
+
+    if (error) {
+      console.error('Supabase deleteLineup failed:', error.message || error);
+      throw error instanceof Error ? error : new Error(error.message || 'Failed to delete lineup.');
     }
   }
-  
-  // Always fallback to localStorage as well
+
   deleteLocalLineup(id);
   saveLiveLineupsCache(getLiveCachedLineups().filter((lineup) => lineup.id !== id));
   return true;

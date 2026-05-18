@@ -8,7 +8,8 @@ const listeners = new Set();
 let hasBoundNetworkListeners = false;
 let retryTimer = null;
 let settledTimer = null;
-let syncRequest = null;
+// BUG-029: use a queue so concurrent requestSync calls don't overwrite each other
+let syncQueue = [];
 let syncInFlight = false;
 
 let state = {
@@ -63,7 +64,7 @@ function isOfflineFailure(error) {
 }
 
 async function runSyncRequest() {
-  if (!syncRequest) return;
+  if (!syncQueue.length) return;
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     setState({ isOnline: false, status: 'offline', hasPendingSync: true });
     return;
@@ -72,17 +73,24 @@ async function runSyncRequest() {
 
   syncInFlight = true;
   clearTimers();
+  const current = syncQueue[0];
   setState({
     isOnline: true,
     status: 'syncing',
-    syncKey: syncRequest.key,
+    syncKey: current.key,
     hasPendingSync: true,
   });
 
   try {
-    await syncRequest.action();
-    syncRequest = null;
+    await current.action();
+    syncQueue.shift();
     syncInFlight = false;
+
+    if (syncQueue.length) {
+      void runSyncRequest();
+      return;
+    }
+
     setState({
       isOnline: true,
       status: 'synced',
@@ -101,7 +109,13 @@ async function runSyncRequest() {
       return;
     }
 
-    syncRequest = null;
+    syncQueue.shift();
+
+    if (syncQueue.length) {
+      void runSyncRequest();
+      return;
+    }
+
     setState({
       isOnline: true,
       status: 'sync_error',
@@ -117,7 +131,7 @@ function handleOnline() {
     status: 'back_online',
   });
 
-  if (syncRequest) {
+  if (syncQueue.length) {
     retryTimer = window.setTimeout(() => {
       retryTimer = null;
       void runSyncRequest();
@@ -141,7 +155,7 @@ function handleOffline() {
   setState({
     isOnline: false,
     status: 'offline',
-    hasPendingSync: !!syncRequest,
+    hasPendingSync: syncQueue.length > 0,
   });
 }
 
@@ -164,10 +178,10 @@ function getSnapshot() {
 }
 
 export function requestSync(syncKey, action) {
-  syncRequest = {
+  syncQueue.push({
     key: syncKey,
     action,
-  };
+  });
 
   setState({
     syncKey,

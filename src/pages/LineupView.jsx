@@ -17,6 +17,13 @@ export default function LineupView() {
   const [songsMap, setSongsMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [openSongs, setOpenSongs] = useState(() => new Set([0]));
+
+  const toggleSong = (index) => setOpenSongs((prev) => {
+    const next = new Set(prev);
+    next.has(index) ? next.delete(index) : next.add(index);
+    return next;
+  });
   const { showToast } = useToast();
   const offlineLineups = useOfflineItems('lineup');
 
@@ -56,7 +63,8 @@ export default function LineupView() {
   if (!lineup) {
     return (
       <main className="page-shell">
-        <p className="text-slate-300">{loading ? 'Loading lineup...' : 'Lineup not found.'}</p>
+        {/* BUG-017: loading is always false here because of the early return above — render the not-found message directly. */}
+        <p className="text-slate-300">Lineup not found.</p>
         {error && <p className="mt-2 text-sm font-semibold text-red-700">{error}</p>}
         <Link className="btn-primary mt-4" to="/lineups"><ArrowLeft size={18} aria-hidden="true" /> Back to Lineups</Link>
       </main>
@@ -125,54 +133,69 @@ export default function LineupView() {
             const song = songsMap[lineupSong.id || lineupSong.songId] || embeddedSong;
             const delta = song ? getSemitoneDelta(song.originalKey, lineupSong.selectedKey) : 0;
             return (
-              <article key={`${lineupSong.id || lineupSong.songId}-${index}`} className="panel flex w-full min-w-0 flex-col gap-4">
-                <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <article key={`${lineupSong.id || lineupSong.songId}-${index}`} className="panel flex w-full min-w-0 flex-col gap-0">
+                <button
+                  type="button"
+                  className="flex w-full min-w-0 items-center gap-3 text-left"
+                  onClick={() => toggleSong(index)}
+                  aria-expanded={openSongs.has(index)}
+                >
+                  <span className="lineup-song-number">{index + 1}</span>
                   <div className="min-w-0 flex-1">
-                    <div className="mb-1 flex min-w-0 items-center gap-3">
-                      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-blue-950 text-sm font-black text-blue-400 ring-1 ring-blue-500/20 shadow-lg">{index + 1}</span>
-                      <h2 className="text-wrap-anywhere min-w-0 text-lg font-black leading-tight text-white sm:text-2xl">{lineupSong.title}</h2>
-                    </div>
-                    {song?.artist && <p className="break-words text-slate-400 font-bold sm:ml-10">{song.artist}</p>}
-                    {lineupSong.notes && <p className="mt-2 break-words text-sm font-medium text-slate-300 bg-slate-950/50 p-3 rounded-xl border border-slate-800/50 sm:ml-10">{lineupSong.notes}</p>}
+                    <h2 className="text-wrap-anywhere min-w-0 text-base font-black leading-tight text-white sm:text-xl">{lineupSong.title}</h2>
+                    {song?.artist && <p className="break-words text-xs font-bold text-slate-500">{song.artist}</p>}
                   </div>
-                  
-                  <div className="mt-2 flex w-full min-w-0 max-w-full flex-wrap items-center gap-3 sm:ml-4 sm:mt-0 sm:w-auto sm:flex-col sm:items-end">
-                    <div className="flex max-w-full min-w-0 items-center gap-1 rounded-xl border border-slate-800/50 bg-slate-950/50 p-1.5 shadow-inner">
-                      <button className="grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-800 hover:text-white transition-all" onClick={() => updateSongKey(index, -1)} title="Transpose Down">
-                        <ChevronDown size={20} />
-                      </button>
-                      <div className="flex min-w-14 flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 shadow-lg">
-                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">Key</span>
-                        <span className="text-base font-black text-blue-400 leading-none">{lineupSong.selectedKey}</span>
-                      </div>
-                      <button className="grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-800 hover:text-white transition-all" onClick={() => updateSongKey(index, 1)} title="Transpose Up">
-                        <ChevronUp size={20} />
-                      </button>
-                    </div>
-                    
-                    <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center sm:gap-2">
-                      {song && (
-                        <Link to={`/songs/${song.id}?from=lineup&lineupId=${lineup.id}`} className="btn-secondary w-full !py-2 !px-3.5 text-xs font-black uppercase tracking-wider sm:w-auto" title="Song Details">
-                          <BookOpen size={14} /> Details
-                        </Link>
-                      )}
-                      {song?.youtubeLink && (
-                        <a href={song.youtubeLink} target="_blank" rel="noopener noreferrer" className="btn-secondary w-full !py-2 !px-3.5 text-xs font-black uppercase tracking-wider !text-red-500 hover:!bg-red-950/50 hover:!border-red-900/50 sm:w-auto" title="Open YouTube">
-                          <Youtube size={14} /> Listen
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="mt-2 w-full min-w-0 max-w-full overflow-hidden sm:ml-10 sm:w-auto">
-                  <ChordChartViewer
-                    preClassName="!p-3 !bg-slate-950/80 !border-slate-800/50 sm:!p-5"
-                    chordChart={song ? transposeChords(song.chordChart, delta) : ''}
-                    emptyText={song ? 'No chord chart added.' : 'Song not found in library.'}
-                    showControls={index === 0}
+                  <ChevronDown
+                    size={18}
+                    className={`shrink-0 text-slate-500 transition-transform duration-200 ${openSongs.has(index) ? 'rotate-180' : ''}`}
+                    aria-hidden="true"
                   />
-                </div>
+                </button>
+
+                {openSongs.has(index) && (
+                  <div className="mt-4 animate-fade-in">
+                    {lineupSong.notes && (
+                      <p className="mb-4 break-words border-y border-r border-slate-800/50 border-l-4 border-l-slate-600/50 bg-slate-950/50 p-3 text-sm font-medium text-slate-300 sm:ml-11">
+                        {lineupSong.notes}
+                      </p>
+                    )}
+                    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-3 sm:ml-11">
+                      <div className="flex max-w-full min-w-0 items-center gap-1 rounded-xl border border-slate-800/50 bg-slate-950/50 p-1.5 shadow-inner">
+                        <button className="grid size-10 place-items-center rounded-lg text-slate-500 transition-all hover:bg-slate-800 hover:text-white active:scale-90" onClick={() => updateSongKey(index, -1)} title="Transpose Down">
+                          <ChevronDown size={20} />
+                        </button>
+                        <div className="flex min-w-14 flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 shadow-lg">
+                          <span className="mb-1 text-[10px] font-black uppercase leading-none tracking-widest text-slate-500">Key</span>
+                          <span className="text-base font-black leading-none text-blue-400">{lineupSong.selectedKey}</span>
+                        </div>
+                        <button className="grid size-10 place-items-center rounded-lg text-slate-500 transition-all hover:bg-slate-800 hover:text-white active:scale-90" onClick={() => updateSongKey(index, 1)} title="Transpose Up">
+                          <ChevronUp size={20} />
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {song && (
+                          <Link to={`/songs/${song.id}?from=lineup&lineupId=${lineup.id}`} className="btn-secondary !py-2 !px-3.5 text-xs font-black uppercase tracking-wider" title="Song Details">
+                            <BookOpen size={14} /> Details
+                          </Link>
+                        )}
+                        {song?.youtubeLink && (
+                          <a href={song.youtubeLink} target="_blank" rel="noopener noreferrer" className="btn-secondary !py-2 !px-3.5 text-xs font-black uppercase tracking-wider !text-red-500 hover:!bg-red-950/50 hover:!border-red-900/50" title="Open YouTube">
+                            <Youtube size={14} /> Listen
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 w-full min-w-0 max-w-full overflow-hidden sm:ml-11">
+                      <ChordChartViewer
+                        preClassName="!p-3 !bg-slate-950/80 !border-slate-800/50 sm:!p-5"
+                        chordChart={song ? transposeChords(song.chordChart, delta) : ''}
+                        emptyText={song ? 'No chord chart added.' : 'Song not found in library.'}
+                        showControls={index === 0}
+                      />
+                    </div>
+                  </div>
+                )}
               </article>
             );
           })}

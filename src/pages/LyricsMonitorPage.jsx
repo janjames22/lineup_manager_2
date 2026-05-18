@@ -54,7 +54,9 @@ export default function LyricsMonitorPage() {
       };
     }
 
-    const sections = lineup?.songs.flatMap((lineupSong) => {
+    // BUG-016: use optional chaining on .songs so a lineup without the songs
+    // relationship does not throw a TypeError on .flatMap.
+    const sections = lineup?.songs?.flatMap((lineupSong) => {
       const embeddedSong = lineupSong.song || (lineupSong.lyricsMonitor?.length ? lineupSong : null);
       const linkedSong = songsMap[lineupSong.id || lineupSong.songId] || embeddedSong;
       const cues = linkedSong?.lyricsMonitor?.length ? linkedSong.lyricsMonitor : [{ section: 'Song Cue', text: lineupSong.notes || 'No cue text added.', vocalNotes: '', repeatCount: '' }];

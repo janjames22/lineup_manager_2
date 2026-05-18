@@ -4,8 +4,10 @@ import OfflineStatusBadge from './OfflineStatusBadge';
 import NotificationBell from './NotificationBell';
 
 const navLink = ({ isActive }) =>
-  `inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition-all duration-200 ${
-    isActive ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+  `relative inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition-all duration-200 ${
+    isActive
+      ? 'text-blue-400 font-extrabold after:absolute after:bottom-0 after:inset-x-1 after:h-0.5 after:rounded-full after:bg-blue-400'
+      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
   }`;
 
 export default function Navbar({
@@ -19,10 +21,10 @@ export default function Navbar({
   onNotificationSoundEnabledChange,
 }) {
   return (
-    <header className="border-b border-slate-800/50 bg-slate-900/95 backdrop-blur-md sticky top-0 z-40 print:hidden" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <header className="border-b border-slate-800/80 bg-slate-900/95 backdrop-blur-md sticky top-0 z-40 print:hidden" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-3 px-3 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
         <Link to="/" className="group flex min-w-0 items-center gap-3">
-          <div className="relative size-10 rounded-xl bg-slate-800 p-1 ring-1 ring-white/10 group-hover:ring-white/20 transition-all shadow-lg">
+          <div className="relative size-11 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 p-1 ring-1 ring-white/10 group-hover:ring-white/20 transition-all shadow-lg">
             <img src="/logo.png" alt="Line Up Manager Logo" className="h-full w-full object-contain" />
             {unreadNotificationCount > 0 && (
               <span
@@ -76,7 +78,7 @@ export default function Navbar({
             soundEnabled={notificationSoundEnabled}
             onSoundEnabledChange={onNotificationSoundEnabledChange}
           />
-          <button className="inline-flex min-h-10 max-w-full min-w-0 items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm font-bold text-slate-200" type="button" onClick={onShareApp}>
+          <button className="ml-auto inline-flex shrink-0 min-h-10 max-w-full min-w-0 items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm font-bold text-slate-200" type="button" onClick={onShareApp}>
             <QrCode size={16} aria-hidden="true" /> Install QR
           </button>
         </div>

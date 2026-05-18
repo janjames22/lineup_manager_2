@@ -191,8 +191,9 @@ export default function NotificationBell({
                 <span className={`mt-1 block whitespace-normal break-words text-xs font-semibold leading-relaxed ${notification.read ? 'text-slate-500' : 'text-slate-300'}`}>
                   {notification.message || notification.body || 'Tap to open lineup'}
                 </span>
+                {/* BUG-024: guard against null/undefined createdAt to avoid rendering "Invalid Date" */}
                 <span className="mt-1 block whitespace-normal break-words text-xs font-medium text-slate-600">
-                  {new Date(notification.createdAt).toLocaleString()}
+                  {notification.createdAt ? new Date(notification.createdAt).toLocaleString() : '—'}
                 </span>
               </div>
             </button>

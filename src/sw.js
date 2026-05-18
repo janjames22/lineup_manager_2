@@ -422,7 +422,9 @@ setCacheNameDetails({
 });
 
 precacheAndRoute(self.__WB_MANIFEST);
-cleanupOutdatedCaches();
+// BUG-026: removed cleanupOutdatedCaches() — the activate event handler below
+// already cleans up all outdated lineup-manager and workbox caches manually.
+// Running both can delete caches that Workbox intends to keep for the current version.
 clientsClaim();
 
 self.addEventListener('install', (event) => {
@@ -430,18 +432,16 @@ self.addEventListener('install', (event) => {
   event.waitUntil(Promise.resolve());
 });
 
+// BUG-027: use a single navigation strategy.
+// NetworkFirst is tried first so fresh content is served when online;
+// the precached app shell is the fallback when the network is unavailable.
 const appShellHandler = createHandlerBoundToURL('index.html');
 const navigationHandler = new NetworkFirst({
   cacheName: APP_SHELL_CACHE,
   networkTimeoutSeconds: 3,
   plugins: [
-    new CacheableResponsePlugin({
-      statuses: [200],
-    }),
-    new ExpirationPlugin({
-      maxEntries: 10,
-      purgeOnQuotaError: true,
-    }),
+    new CacheableResponsePlugin({ statuses: [200] }),
+    new ExpirationPlugin({ maxEntries: 10, purgeOnQuotaError: true }),
   ],
 });
 

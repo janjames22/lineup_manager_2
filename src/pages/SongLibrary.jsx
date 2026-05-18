@@ -1,4 +1,4 @@
-import { Plus, Search } from 'lucide-react';
+import { BookOpen, Plus, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import EmptyState from '../components/EmptyState';
@@ -49,34 +49,52 @@ export default function SongLibrary() {
 
       {error && <p className="mb-4 text-sm font-semibold text-red-300">{error}</p>}
 
-      <section className="panel mb-6">
+      <section className="panel mb-6 !p-4 sm:!p-5">
         <div className="grid w-full min-w-0 gap-3 md:grid-cols-[minmax(0,1.5fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.7fr)]">
           <label className="relative block">
             <span className="sr-only">Search songs</span>
-            <Search className="pointer-events-none absolute left-3 top-3 text-blue-400" size={18} aria-hidden="true" />
+            <Search className="pointer-events-none absolute left-3 top-2.5 text-blue-400" size={18} aria-hidden="true" />
             <input className="input pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title or artist" />
           </label>
-          <select className="input" value={keyFilter} onChange={(event) => setKeyFilter(event.target.value)}>
-            <option value="">All keys</option>
-            {KEYS.map((key) => <option key={key} value={key}>{key}</option>)}
-          </select>
-          <select className="input" value={category} onChange={(event) => setCategory(event.target.value)}>
-            <option value="">All categories</option>
-            {categories.map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
-          <select className="input" value={language} onChange={(event) => setLanguage(event.target.value)}>
-            <option value="">All languages</option>
-            {languages.map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
+          <div className="grid grid-cols-3 gap-2 md:contents">
+            <select className="filter-pill w-full" value={keyFilter} onChange={(event) => setKeyFilter(event.target.value)}>
+              <option value="">All keys</option>
+              {KEYS.map((key) => <option key={key} value={key}>{key}</option>)}
+            </select>
+            <select className="filter-pill w-full" value={category} onChange={(event) => setCategory(event.target.value)}>
+              <option value="">All categories</option>
+              {categories.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+            <select className="filter-pill w-full" value={language} onChange={(event) => setLanguage(event.target.value)}>
+              <option value="">All languages</option>
+              {languages.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </div>
+          {(keyFilter || category || language) && (
+            <button
+              type="button"
+              className="col-span-full w-full py-1 text-xs font-black text-slate-500 transition-colors hover:text-slate-300"
+              onClick={() => { setKeyFilter(''); setCategory(''); setLanguage(''); }}
+            >
+              Clear filters
+            </button>
+          )}
         </div>
       </section>
+
+      {filteredSongs.length > 0 && (
+        <p className="mb-4 text-xs font-bold text-slate-500">
+          {filteredSongs.length} song{filteredSongs.length !== 1 ? 's' : ''}
+          {(query || keyFilter || category || language) ? ' matching filters' : ' in library'}
+        </p>
+      )}
 
       {filteredSongs.length ? (
         <div className="grid w-full min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filteredSongs.map((song) => <SongCard key={song.id} song={song} offline={offlineSongs} />)}
         </div>
       ) : (
-        <EmptyState title="No songs found" message="Try a different search or add the first song for your team." action={<Link className="btn-primary" to="/songs/new">Add Song</Link>} />
+        <EmptyState icon={BookOpen} title="No songs found" message="Try a different search or add the first song for your team." action={<Link className="btn-primary" to="/songs/new">Add Song</Link>} />
       )}
     </main>
   );
