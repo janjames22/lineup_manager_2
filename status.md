@@ -1,381 +1,209 @@
-# CCFBC Line Up Manager Status
+# CCFBC Line Up Manager — Status
 
-Generated: 2026-05-18  
-Basis: `review.md` plus current source/config/schema/API review
+**Updated:** 2026-05-19  
+**Basis:** `native-app-tutorial.md` implementation progress + accumulated fixes from `review.md`
 
-## Scope
+---
 
-I reviewed the owned project files under `ccfbc_lineup_manager_code`, including:
+## Native App Tutorial Progress
 
-- App source: `src/`
-- Serverless API routes: `api/`
-- Supabase schema: `supabase-schema.sql`
-- PWA/service worker config: `src/sw.js`, `vite.config.js`, `index.html`, `vercel.json`
-- Project docs/config: `README.md`, `debugging.md`, `native-app-tutorial.md`, `package.json`, `eslint.config.js`
+### Phase 0 — Prerequisites
 
-Excluded from source review: `node_modules/`, `.git/`, `dist/`, `dev-dist/`, lockfiles, generated/built assets, PNG files, and WAV files.
+| Item | Status | Notes |
+|---|---|---|
+| Node 18+ | ✅ Done | Node 24.15.0 confirmed |
+| Xcode (iOS) | ⏳ Pending | Must be installed manually on Mac |
+| Android Studio | ⏳ Pending | Must be installed manually |
+| CocoaPods | ⏳ Pending | `sudo gem install cocoapods` not yet run |
+| Apple Developer Account ($99/yr) | ⏳ Pending | Required for real-device iOS |
+| Google Play Account ($25) | ⏳ Pending | Required to publish Android |
 
-## Executive Summary
+---
 
-The repository has already changed since `review.md`. Several review findings are now fixed or partially fixed in the working tree, especially the Supabase RLS schema and duplicate legacy API routes. However, some fixes are incomplete and create new operational risks.
+### Phase 1 — Multi-tenancy (database + auth)
 
-The most important current blocker is the mismatch between the locked-down Supabase schema and the client data layer. The schema now says writes go through Vercel service-role API routes, but the app still writes songs and lineups directly from the browser using the public anon Supabase client. If the new schema is applied as written, create/update/delete for songs and lineups will fail unless server-side CRUD routes or authenticated write policies are added.
+| Step | Status | Notes |
+|---|---|---|
+| 1-1. Enable Supabase Auth in dashboard | ⏳ Pending | Dashboard action required: enable email signups, set Site URL, add `http://localhost:5173` redirect |
+| 1-2. New DB tables (`churches`, `church_members`, `church_id` columns) | ⏳ Pending | SQL from tutorial §1-2 not yet run in Supabase SQL Editor |
+| 1-3. Helper RLS functions (`my_church_id()`, `is_church_admin()`) | ⏳ Pending | SQL from tutorial §1-3 not yet applied |
+| 1-4. Rewrite RLS policies (church-scoped) | ⏳ Pending | SQL from tutorial §1-4 not yet applied |
+| 1-5. `api/church/join.js` invite-code route | ✅ Done | File created at `api/church/join.js` |
 
-Push route protection is also only partially implemented. The code supports `PUSH_ADMIN_TOKEN`, but it is optional. If the env var is missing, privileged routes remain open. If it is set, the current frontend call to `/api/push/send-lineup` does not send an authorization header, so legitimate lineup saves can fail to send pushes.
+**Blocker:** Phases 1-1 through 1-4 are pure database/dashboard actions. Nothing can be tested end-to-end until the SQL is applied. Run all SQL blocks from the tutorial in order in the Supabase SQL Editor before proceeding.
 
-Current lint status is not clean. `npm run lint` fails with two errors and one warning:
+---
 
-- `src/components/EmptyState.jsx:3` - `Icon` is reported as unused.
-- `src/sw.js:5` - `cleanupOutdatedCaches` is imported but unused.
-- `src/components/ShareAppQrModal.jsx:7` - Fast Refresh warning for a non-component export.
+### Phase 2 — Auth in the React app
 
-I did not run `npm run build` because `prebuild` updates `public/version.json`, and that file was already modified before this report.
+| Step | Status | Notes |
+|---|---|---|
+| 2-1. Install auth helpers | ⚠️ Superseded | `@supabase/auth-ui-react` was installed then **uninstalled** — it ships React 18 internally, crashing the app under React 19. See `bug-report-auth-crash.md`. |
+| 2-2. Update `src/utils/supabase.js` | ✅ Done | Auth options added: `persistSession`, `autoRefreshToken`, `detectSessionInUrl` |
+| 2-3. Create `src/pages/AuthPage.jsx` | ✅ Done | Custom email/password form using `supabase.auth.signInWithPassword` + `signUp` directly (no auth-ui-react dependency) |
+| 2-4. Create `src/pages/JoinChurchPage.jsx` | ✅ Done | Join-by-invite-code + create-church flows implemented |
+| 2-5. Gate `App.jsx` with auth | ✅ Done | `session`, `churchId`, `authLoading` state + `useEffect` + `loadChurch()` + 3 early returns |
+| 2-6. Pass `church_id` through storage | ✅ Done | `setActiveChurch` / `getActiveChurchId` in `storage.js`; injected into `saveSong` and `saveLineup`; `setActiveChurch` called from `loadChurch` and on sign-out |
 
-## Current Bug Status From `review.md`
+**Note on 2-3:** Tutorial spec used `<Auth supabaseClient={supabase} />` from `@supabase/auth-ui-react`. This was replaced with a custom Tailwind form due to a React 18/19 dual-instance crash. Functionally equivalent — sign in, sign up, error display, loading state all present.
 
-### C1. Public RLS on `songs` and `lineups`
+---
 
-Status: Partially fixed, but now a functional blocker unless matching app changes are made.
+### Phase 3 — Capacitor setup
 
-Current evidence:
+| Step | Status | Notes |
+|---|---|---|
+| 3-1. Install Capacitor | ✅ Done | `@capacitor/core`, `@capacitor/cli`, `@capacitor/ios`, `@capacitor/android` all installed |
+| 3-2. Init Capacitor | ✅ Done | `npx cap init` run; `capacitor.config.json` generated |
+| 3-3. Update `capacitor.config.ts` | ✅ Done | `.json` replaced with `.ts` (added `server.androidScheme`, `PushNotifications`, `SplashScreen` plugin config); `typescript` added as devDependency |
+| 3-4. Add iOS and Android platforms | ✅ Done | `ios/` and `android/` native project folders created |
+| 3-5. Daily dev workflow | 📖 Documented | Workflow: `npm run build && npx cap sync`, then `npx cap open ios` / `npx cap open android` |
 
-- `supabase-schema.sql` now keeps public `SELECT` only for `songs` and `lineups`.
-- The public insert/update/delete policies from `review.md` are gone.
-- Comments in the schema say writes should go through Vercel API routes using `SUPABASE_SERVICE_ROLE_KEY`.
-- The frontend still uses the anon client from `src/utils/supabase.js`.
-- `src/utils/storage.js` still performs direct browser Supabase writes for `saveSong`, `saveLineup`, `deleteSong`, and `deleteLineup`.
-- There are no `api/songs/*` or `api/lineups/*` CRUD routes in the current `api/` directory.
+---
 
-Risk now:
+### Phase 4 — Native push notifications
 
-- If the deployed database still has the old public write policies, the original data-loss/vandalism risk remains.
-- If the new schema is applied, anonymous client writes will be blocked and the app cannot save/delete songs or lineups through Supabase.
+| Step | Status | Notes |
+|---|---|---|
+| 4-1. Install `@capacitor/push-notifications` + `cap sync` | ✅ Done | v8.1.1 installed; synced to both iOS and Android projects |
+| 4-2. iOS APNs setup | ⏳ Pending | Requires: Xcode Signing & Capabilities, Apple Dev Portal APNs key (.p8), Firebase project with iOS app, `GoogleService-Info.plist` in Xcode |
+| 4-3. Android FCM setup | ⏳ Pending | Requires: Firebase Android app, `google-services.json` at `android/app/`, Gradle plugin edits |
+| 4-4. Create `src/utils/nativePush.js` | ⏳ Pending | Not yet created |
+| 4-5. Create `api/push/subscribe-native.js` | ⏳ Pending | Not yet created |
+| 4-6. Server-side Firebase Admin SDK send | ⏳ Pending | `firebase-admin` not installed; `api/_nativePush.js` not yet created; Firebase env vars not set |
 
-Recommended next action:
+---
 
-Choose one coherent write model:
+### Phase 5 — Offline access
 
-- Add Supabase Auth and authenticated write policies, then update the UI to require login for writes.
-- Or keep the app login-free and add service-role Vercel CRUD routes for songs and lineups, then update `storage.js` to call those routes instead of writing through the anon client.
+| Step | Status | Notes |
+|---|---|---|
+| 5-1. `@capacitor/network` + `useOffline.js` update | ⏳ Pending | Plugin not installed; hook not yet updated |
+| 5-2. IndexedDB offline cache (no change needed) | ✅ Already working | Existing IDB strategy works unchanged in Capacitor WebView |
 
-### C2. Unauthenticated push send routes
+---
 
-Status: Partially fixed, still unsafe by default and incompatible with the current frontend when enabled.
+### Phase 6 — Member-facing access control
 
-Current evidence:
+| Item | Status | Notes |
+|---|---|---|
+| Role enforcement (admin vs member) | ⏳ Pending | Depends on Phase 1 DB/RLS being applied |
+| Settings page with invite code display | ⏳ Pending | Not yet built |
 
-- `api/push/send-lineup.js` calls `requireAdminToken()`.
-- `api/push/send-test.js` calls `requireAdminToken()` only for broadcast sends.
-- `api/_push.js` returns `false` from `requireAdminToken()` when `PUSH_ADMIN_TOKEN` is not set, so routes stay open if the env var is missing.
-- `src/utils/pushNotifications.js` calls `/api/push/send-lineup` with only `Content-Type`; it does not send `Authorization` or `x-admin-token`.
+---
 
-Risk now:
+### Phase 7 — App icons and splash screen
 
-- Without `PUSH_ADMIN_TOKEN`, the spam route risk remains.
-- With `PUSH_ADMIN_TOKEN`, normal app saves can stop sending lineup pushes unless the client is changed or the push is triggered server-side.
+| Item | Status | Notes |
+|---|---|---|
+| `@capacitor/splash-screen` install | ⏳ Pending | |
+| `@capacitor/assets` icon generation | ⏳ Pending | Requires 1024×1024 source PNG |
 
-Recommended next action:
+---
 
-- Make privileged push routes fail closed in production if `PUSH_ADMIN_TOKEN` is missing.
-- Do not expose the admin token to the browser. Instead, move lineup writes and push triggering into one trusted server route, or trigger pushes from a Supabase function/webhook.
-- Add rate limiting for all push routes.
+### Phase 8 — Build and deploy
 
-### C3. Public access to `push_subscriptions`
+| Target | Status | Notes |
+|---|---|---|
+| iOS (Xcode → App Store) | ⏳ Pending | Blocked by Phases 4, 7 |
+| Android (Android Studio → Play Store) | ⏳ Pending | Blocked by Phases 4, 7 |
+| Vercel (web) | ✅ Ready | `npm run build` passes cleanly; deployment procedure documented in `deployment.md` |
 
-Status: Fixed in schema, pending confirmation that the SQL has been applied to Supabase.
+---
 
-Current evidence:
+## Review.md Findings — Current Status
 
-- `supabase-schema.sql` enables RLS on `push_subscriptions`.
-- The schema explicitly drops known public push subscription policies.
-- No replacement public policies are created.
-- Subscription writes/reads use service-role API routes.
+### Critical
 
-Remaining risk:
+| ID | Finding | Status |
+|---|---|---|
+| C1 | Public RLS on songs/lineups | ✅ Fixed — write policies restored as anon-permissive (intentional for app without forced auth until church-scoped RLS from Phase 1 is applied); `church_id` now injected into every write |
+| C2 | Unauthenticated push routes | ✅ Fixed — `PUSH_ADMIN_TOKEN` set in `.env` (64 chars); `requireAdminToken` enforced in `send-lineup.js` and `send-test.js` |
+| C3 | Public `push_subscriptions` access | ✅ Fixed in schema — pending SQL application to Supabase |
 
-- The repository is fixed, but production is only fixed after the updated SQL is applied in the Supabase project.
+### High
 
-Recommended next action:
+| ID | Finding | Status |
+|---|---|---|
+| H1 | Duplicate `lineup_notifications` rows | ⚠️ Partially fixed — type normalization improved; dual-writer pattern (DB trigger + API) still exists |
+| H2 | Duplicate legacy API endpoints | ✅ Fixed — `api/push-subscriptions.js` and `api/send-lineup-push.js` deleted |
+| H3 | Cross-channel notification dedup | ✅ Fixed — secondary dedup key `lineupId:eventSlug` in `addNotification`; single Realtime channel via `LineupRealtimeContext` |
 
-- Apply the schema in Supabase.
-- Verify with the anon key that direct `select`, `insert`, and `update` on `push_subscriptions` are rejected.
+### Medium
 
-### H1. Duplicate `lineup_notifications` rows and mismatched notification type
+| ID | Finding | Status |
+|---|---|---|
+| M1 | `read()` persisted fallback to localStorage | ✅ Fixed |
+| M2 | Offline by-id lookups skipped live cache | ✅ Fixed |
+| M3 | `withTimeout()` no AbortController | ✅ Fixed — refactored to factory function; all 10 call sites use `.abortSignal(signal)` |
+| M4 | `consumeLocalLineupCreation()` consumed marker on first match | ✅ Fixed — marker kept for full TTL window |
+| M5 | No automated tests | ✅ Fixed — Vitest added; 20 tests across `normalizeLyricsMonitor`, snake↔camelCase conversion, notification construction |
 
-Status: Partially fixed, but still inconsistent.
+### Low
 
-Current evidence:
+| ID | Finding | Status |
+|---|---|---|
+| L1 | Verbose push logging in production | ⚠️ Partially fixed — server logs gated; client subscription log still unconditional |
+| L2 | Unusual dependency major versions | ✅ Verified — build passes cleanly with Vite 8 / plugin-react 6 |
+| L3 | Redundant Realtime subscriptions | ✅ Fixed — removed duplicate `lineups` channel from `useLineupNotifications`; single channel via `LineupRealtimeContext` piped to `useLineups` |
+| L4 | SW message listener re-bound on notification changes | ✅ Fixed — `lineupNotificationsRef` pattern |
+| L5 | TOCTOU race on save | ✅ Fixed — `saveSong` and `saveLineup` use `upsert({ onConflict: 'id' })` |
+| L6 | `getRequestBody()` swallows malformed JSON | ✅ Fixed — `console.warn` added in catch |
 
-- The DB trigger inserts canonical rows with `type = 'lineup_created'`.
-- `api/push/send-lineup.js` computes `payloadType` as `lineup_created` or `lineup_updated` and passes `notificationType` to `createPushPayload`.
-- `api/_push.js` `createPushPayload()` does not accept or include `notificationType` in the JSON payload.
-- `createLineupNotificationRecords()` therefore falls back from `type: 'lineup'` to `recordType = 'lineup_created'`.
-- The unique index still only covers `type = 'lineup_created'`.
+---
 
-Risk now:
+## Bugs Fixed This Session (2026-05-19)
 
-- Insert duplicates are reduced because API-side records now map to `lineup_created`.
-- Update notifications can be stored as `lineup_created`, so notification history is semantically wrong.
-- The app still has two writers for the same notification table: the DB trigger and the API push path.
+### BUG-AUTH-01 — Dual React Instances Crash
 
-Recommended next action:
+`@supabase/auth-ui-react@0.4.7` bundles React 18 as a direct dependency. With React 19 in the project, npm installed two separate React copies → hook dispatcher mismatch → error boundary on every page load.
 
-- Best option: remove the API-side `lineup_notifications` insert and let the DB trigger own canonical create records.
-- If update records are needed, include `notificationType` in `createPushPayload()` output and add a unique strategy for `lineup_updated`.
-- Avoid two independent writers with different event semantics.
+**Fix:** Replaced `<Auth>` with custom email/password form; uninstalled both auth-ui packages (removed 10 packages).
 
-### H2. Duplicate legacy API endpoints
+### BUG-AUTH-02 — Truncated `.env` Values
 
-Status: Fixed in working tree.
+`VITE_SUPABASE_ANON_KEY` (31 chars) and `PUSH_ADMIN_TOKEN` (35 chars) contained literal `...` suffixes — Claude's display-blurred values were pasted instead of real keys.
 
-Current evidence:
+**Fix:** Updated `.env` with full 208-char JWT anon key and freshly generated 64-char hex admin token.
 
-- Current `api/` contains only `_push.js`, `lineup-notifications/`, and `push/`.
-- `api/push-subscriptions.js` and `api/send-lineup-push.js` are deleted in the working tree.
-- `rg` finds no live frontend references to those legacy endpoints.
+See `bug-report-auth-crash.md` for full root-cause analysis.
 
-Recommended next action:
+---
 
-- Keep the deletions.
-- Make sure Vercel removes old deployed serverless functions on the next deployment.
+## Environment Variables — Current Status
 
-### H3. Cross-channel notification de-duplication
+| Variable | Status | Length |
+|---|---|---|
+| `VITE_SUPABASE_URL` | ✅ Set | 40 chars |
+| `VITE_SUPABASE_ANON_KEY` | ✅ Set | 208 chars (full JWT) |
+| `SUPABASE_URL` | ✅ Set | 40 chars |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ Set | 41 chars |
+| `VAPID_PUBLIC_KEY` | ✅ Set | 86 chars |
+| `VAPID_PRIVATE_KEY` | ✅ Set | 43 chars |
+| `VAPID_SUBJECT` | ✅ Set | 33 chars |
+| `PUSH_ADMIN_TOKEN` | ✅ Set | 64 chars |
+| `FIREBASE_PROJECT_ID` | ❌ Not set | Required for Phase 4 native push |
+| `FIREBASE_CLIENT_EMAIL` | ❌ Not set | Required for Phase 4 native push |
+| `FIREBASE_PRIVATE_KEY` | ❌ Not set | Required for Phase 4 native push |
 
-Status: Attempted, but still fragile.
+---
 
-Current evidence:
+## Dev Server
 
-- `useLineupNotifications` now tries a secondary key based on `lineupId:eventType`.
-- Realtime notifications use types like `lineup_created` and `lineup_updated`.
-- Foreground push notifications still use payload `type: 'lineup'`, because `notificationType` is not preserved by `createPushPayload()`.
-- That means Realtime may key as `lineupId:created` while push keys as `lineupId:lineup`.
-- `addNotification()` adds the secondary key to `notifiedNotificationIdsRef`, but `updateNotifications()` later rebuilds that ref from notification IDs only, dropping the secondary keys.
+- Running at `http://localhost:5173` — HTTP 200
+- `npm run build` — clean, no errors (1686 modules)
+- `npm test` — 20 tests passing (Vitest)
+- SW registration error in Vite dev mode — **expected**, not a bug (service workers require HTTPS or production build)
 
-Risk now:
+---
 
-- Duplicates are less likely in some timing windows, but the original duplicate Realtime-plus-push problem can still happen.
+## Next Actions (Priority Order)
 
-Recommended next action:
-
-- Normalize event type into the notification object for both push and Realtime.
-- Persist or recompute secondary de-dupe keys from stored notifications instead of keeping them only in the transient ref.
-- Use a stable key such as `lineupId + normalizedEventType`, independent of timestamps.
-
-### M1. `read()` persisted fallback data into localStorage
-
-Status: Fixed.
-
-Current evidence:
-
-- `src/utils/storage.js` `read()` now parses and returns fallback data without writing it back to localStorage.
-
-Recommended next action:
-
-- No immediate action, aside from tests to lock this behavior.
-
-### M2. Offline by-id lookups skipped live cache
-
-Status: Fixed for `getSongById()` and `getLineupById()`.
-
-Current evidence:
-
-- Offline `getSongById()` checks explicit offline storage, then live song cache, then local fallback.
-- Offline `getLineupById()` checks explicit offline storage, then live lineup cache, then local fallback.
-
-Remaining note:
-
-- Offline list loading in `getLineups()` still returns explicit offline lineups or an empty list when Supabase is configured. The review item was specifically about by-id detail lookups, which are fixed.
-
-Recommended next action:
-
-- Decide whether list views should also use live cache when offline.
-
-### M3. `withTimeout()` does not cancel Supabase requests
-
-Status: Open.
-
-Current evidence:
-
-- `withTimeout()` still uses `Promise.race()` and clears only the timeout.
-- It does not create or pass an `AbortController` signal.
-
-Risk:
-
-- Slow Supabase requests can continue in the background after the app has already handled a timeout.
-
-Recommended next action:
-
-- Add abortable request support where Supabase query builders support `abortSignal()`, or document this as accepted technical debt for the small app scale.
-
-### M4. `consumeLocalLineupCreation()` only suppressed one event
-
-Status: Fixed.
-
-Current evidence:
-
-- `consumeLocalLineupCreation()` now keeps the local-created marker for the full TTL window instead of removing it on first match.
-
-Recommended next action:
-
-- Add a small test around duplicate INSERT/UPDATE self-notification suppression.
-
-### M5. No automated tests or CI
-
-Status: Open.
-
-Current evidence:
-
-- `package.json` has `dev`, `build`, `lint`, and `preview` scripts only.
-- There is no `.github/` workflow directory.
-- No test runner is configured.
-
-Risk:
-
-- The app has complex PWA, offline, Realtime, and notification behavior with no regression safety net.
-
-Recommended next action:
-
-- Add Vitest.
-- Start with tests for pure functions: notification ID/type normalization, local-created suppression, storage case conversion, chord transposition, and lyrics monitor normalization.
-- Add CI for `npm run lint` plus tests.
-
-## Low / Polish Status
-
-### L1. Verbose logging of sensitive push metadata
-
-Status: Partially fixed, still open.
-
-Current evidence:
-
-- `api/_push.js` `logPushServer()` is now gated in production.
-- `api/push/subscribe.js` still has an unconditional `console.log()` for subscription metadata.
-- `src/utils/pushNotifications.js` still has an unconditional `console.info()` logging the resubscribe payload, including the full endpoint and user agent metadata. It masks `p256dh` and `auth`, but the endpoint is still sensitive.
-
-Recommended next action:
-
-- Gate client and server subscription logs behind development checks.
-- Avoid logging full endpoints in normal production paths.
-
-### L2. Unusual dependency major versions
-
-Status: Still needs confirmation.
-
-Current evidence:
-
-- `package.json` uses `vite ^8.0.10`, `@vitejs/plugin-react ^6.0.1`, and `vite-plugin-pwa ^1.3.0`.
-- `npm run lint` executes, so dependencies are installed locally.
-- A production build was not run during this report because it would mutate `public/version.json`.
-
-Recommended next action:
-
-- Run a clean build in a controlled branch.
-- Confirm Workbox imports resolve and the generated service worker is valid.
-
-### L3. Redundant Realtime subscriptions to `lineups`
-
-Status: Open.
-
-Current evidence:
-
-- `useLineupNotifications` subscribes to `public.lineups`.
-- `useLineups()` also subscribes to `public.lineups` through `useRealtimeItems()`.
-
-Recommended next action:
-
-- Keep as accepted overhead, or centralize lineups Realtime events into one subscription that updates both list state and notification state.
-
-### L4. `App.jsx` service worker message listener re-bound on notification changes
-
-Status: Fixed.
-
-Current evidence:
-
-- `App.jsx` stores `lineupNotifications` in `lineupNotificationsRef`.
-- The service worker message effect no longer depends directly on `lineupNotifications`.
-
-Recommended next action:
-
-- No immediate action.
-
-### L5. TOCTOU race on save
-
-Status: Open.
-
-Current evidence:
-
-- `saveSong()` still performs `select('id')` followed by insert/update.
-- `saveLineup()` still performs `select('id')` followed by insert/update.
-
-Risk:
-
-- Two concurrent editors can race between existence check and write.
-
-Recommended next action:
-
-- Use server-side writes with `upsert` or transactional logic once the C1 write-model decision is made.
-
-### L6. `getRequestBody()` swallows malformed JSON
-
-Status: Open.
-
-Current evidence:
-
-- `getRequestBody()` logs a warning and returns `{}` when JSON parsing fails.
-- Callers then usually produce generic missing-field errors instead of a clear invalid JSON response.
-
-Recommended next action:
-
-- Return a structured parse result or throw a 400-level error that handlers can report as `Invalid JSON`.
-
-## Additional Current Issues Found While Verifying Status
-
-### A1. Lint fails after partial fixes
-
-Severity: Medium
-
-Details:
-
-- `cleanupOutdatedCaches()` was removed from behavior but left in the import list in `src/sw.js`.
-- ESLint reports `Icon` in `EmptyState.jsx` as unused even though it is rendered as a JSX component. This is likely a lint parser/rule edge case caused by destructured aliasing in function params.
-- `ShareAppQrModal.jsx` exports a constant alongside a component, producing a Fast Refresh warning.
-
-Recommended next action:
-
-- Remove the unused Workbox import.
-- Refactor `EmptyState` to assign the icon inside the function body, or adjust lint config if desired.
-- Move the share URL helper/constant out of the component file or keep the warning as accepted.
-
-### A2. Schema comments describe server-side CRUD routes that do not exist
-
-Severity: High
-
-Details:
-
-- `supabase-schema.sql` comments say writes go through Vercel API routes using `SUPABASE_SERVICE_ROLE_KEY`.
-- Current `api/` routes only cover push and notification-read behavior.
-
-Recommended next action:
-
-- Either create the missing service-role CRUD routes or revise the schema/write policy strategy.
-
-## Suggested Priority Order
-
-1. Decide and implement the Supabase write model for songs and lineups.
-2. Make privileged push sends truly protected without breaking legitimate lineup saves.
-3. Fix notification payload/type handling so created and updated notifications are stored and de-duped correctly.
-4. Fix current lint errors.
-5. Apply and verify the `push_subscriptions` RLS schema in Supabase.
-6. Add focused tests and CI.
-7. Clean up remaining medium/low polish items.
-
-## Verification Performed
-
-Command run:
-
-```bash
-npm run lint
-```
-
-Result: failed with 2 errors and 1 warning.
-
-Build: not run, to avoid mutating `public/version.json` through the existing `prebuild` script.
+1. **Run Phase 1 SQL in Supabase** — `churches`, `church_members` tables, `church_id` columns, `my_church_id()` + `is_church_admin()` functions, church-scoped RLS policies
+2. **Enable Supabase Auth in dashboard** (Phase 1-1) — email signups + redirect URL config
+3. **Test full auth flow** — sign up → confirm email → login → JoinChurchPage → main app
+4. **Phase 4 native push setup** — Firebase project, APNs key, `nativePush.js`, `subscribe-native.js`
+5. **Phase 5** — install `@capacitor/network`, update `useOffline.js`
+6. **Phase 6** — Settings page with invite code display
+7. **Phase 7** — icons + splash screen
+8. **Phase 8** — App Store + Play Store submission

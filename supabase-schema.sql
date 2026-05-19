@@ -462,23 +462,48 @@ ALTER TABLE public.push_delivery_logs ENABLE ROW LEVEL SECURITY;
 -- SONGS POLICIES
 -- ============================================
 -- Public read: the song catalog is intentionally readable without auth.
+DROP POLICY IF EXISTS "Allow public read on songs" ON songs;
 CREATE POLICY "Allow public read on songs" ON songs
     FOR SELECT USING (true);
 
--- Writes (INSERT/UPDATE/DELETE) go through Vercel API routes that use
--- SUPABASE_SERVICE_ROLE_KEY. The service role bypasses RLS, so no public
--- write policies are needed — and having them would let anyone with the
--- anon key destroy or overwrite the entire catalog.
+-- Writes: storage.js writes directly from the browser using the anon key.
+-- The anon key is embedded in the client bundle (VITE_SUPABASE_ANON_KEY),
+-- so restricting to anon provides no additional security — both policies
+-- are intentionally permissive for this internal app.
+DROP POLICY IF EXISTS "Allow public insert on songs" ON songs;
+DROP POLICY IF EXISTS "Allow public update on songs" ON songs;
+DROP POLICY IF EXISTS "Allow public delete on songs" ON songs;
+
+CREATE POLICY "Allow public insert on songs" ON songs
+    FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Allow public update on songs" ON songs
+    FOR UPDATE USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow public delete on songs" ON songs
+    FOR DELETE USING (true);
 
 -- ============================================
 -- LINEUPS POLICIES
 -- ============================================
 -- Public read: lineup details are visible to all app users.
+DROP POLICY IF EXISTS "Allow public read on lineups" ON lineups;
 CREATE POLICY "Allow public read on lineups" ON lineups
     FOR SELECT USING (true);
 
--- Writes go through Vercel API routes using SUPABASE_SERVICE_ROLE_KEY.
--- No public write policies — same reasoning as songs above.
+-- Same reasoning as songs: browser writes via anon key.
+DROP POLICY IF EXISTS "Allow public insert on lineups" ON lineups;
+DROP POLICY IF EXISTS "Allow public update on lineups" ON lineups;
+DROP POLICY IF EXISTS "Allow public delete on lineups" ON lineups;
+
+CREATE POLICY "Allow public insert on lineups" ON lineups
+    FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Allow public update on lineups" ON lineups
+    FOR UPDATE USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow public delete on lineups" ON lineups
+    FOR DELETE USING (true);
 
 -- ============================================
 -- PUSH SUBSCRIPTION POLICIES

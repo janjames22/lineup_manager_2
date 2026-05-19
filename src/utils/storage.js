@@ -18,6 +18,10 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 const DEFAULT_LYRICS_MONITOR_THEME = 'Dark Void';
 const IS_DEV = import.meta.env.DEV;
 
+let _activeChurchId = null;
+export function setActiveChurch(id) { _activeChurchId = id; }
+export function getActiveChurchId() { return _activeChurchId; }
+
 function debugStorage(message, details) {
   if (!IS_DEV) return;
   if (typeof details === 'undefined') {
@@ -523,6 +527,8 @@ export async function saveSong(song) {
   if (isSupabaseConfigured()) {
     try {
       const snakeSong = toSnakeCaseSong(nextSong);
+      const church_id = getActiveChurchId();
+      if (church_id) snakeSong.church_id = church_id;
       debugStorage('Saving to Supabase with snake_case fields:', snakeSong);
       const hasSupabaseId = isValidUUID(nextSong.id);
 
@@ -684,6 +690,8 @@ export async function saveLineup(lineup, { notify = true } = {}) {
   if (isSupabaseConfigured()) {
     try {
       const payload = toSnakeCaseLineup(nextLineup);
+      const church_id = getActiveChurchId();
+      if (church_id) payload.church_id = church_id;
       debugStorage('Saving lineup payload:', payload);
       const hasSupabaseId = isValidUUID(nextLineup.id);
       const isUpdate = hasSupabaseId;

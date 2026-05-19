@@ -23,6 +23,11 @@ import useLineupNotifications from './hooks/useLineupNotifications';
 import ShareAppQrModal from './components/ShareAppQrModal';
 import { unlockNotificationAudio } from './utils/notificationAudio';
 import { LineupRealtimeContext } from './contexts/LineupRealtimeContext';
+import AuthPage from './pages/AuthPage';
+import JoinChurchPage from './pages/JoinChurchPage';
+import LoadingScreen from './components/LoadingScreen';
+import { supabase } from './utils/supabase';
+import { setActiveChurch } from './utils/storage';
 
 const UPDATE_CHECK_TIMEOUT_MS = 5000;
 const FOREGROUND_UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
@@ -103,6 +108,9 @@ export default function App() {
   const [updateMessage, setUpdateMessage] = useState('');
   const [availableVersionInfo, setAvailableVersionInfo] = useState(null);
   const [shareQrOpen, setShareQrOpen] = useState(false);
+  const [session, setSession] = useState(null);
+  const [churchId, setChurchId] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const { showToast } = useToast();
   const {
     notifications: lineupNotifications,
@@ -550,6 +558,32 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    supabase?.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) loadChurch(session.user.id);
+      else setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase?.auth.onAuthStateChange((_e, session) => {
+      setSession(session);
+      if (session) loadChurch(session.user.id);
+      else { setChurchId(null); setActiveChurch(null); setAuthLoading(false); }
+    }) ?? { data: { subscription: { unsubscribe: () => {} } } };
+    return () => subscription.unsubscribe();
+  }, []);
+
+  async function loadChurch(userId) {
+    const { data } = await supabase
+      .from('church_members')
+      .select('church_id')
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle();  // returns null (not 406) when no membership row exists yet
+    setChurchId(data?.church_id ?? null);
+    setActiveChurch(data?.church_id ?? null);
+    setAuthLoading(false);
+  }
+
   const closeUpdatePrompt = () => {
     setOfflineReady(false);
     setNeedUpdate(false);
@@ -558,6 +592,15 @@ export default function App() {
     setUpdateStatus('idle');
     setUpdateMessage('');
   };
+
+  if (authLoading) return <LoadingScreen />;
+  if (!session) return <AuthPage />;
+  if (!churchId) return (
+    <JoinChurchPage
+      session={session}
+      onJoined={(id) => { setChurchId(id); setActiveChurch(id); }}
+    />
+  );
 
   return (
     <div className="app-shell">

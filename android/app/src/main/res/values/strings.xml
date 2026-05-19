@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Line Up Manager</string>
+    <string name="title_activity_main">Line Up Manager</string>
+    <string name="package_name">com.ccfbc.lineupmanager</string>
+    <string name="custom_url_scheme">com.ccfbc.lineupmanager</string>
+</resources>
