@@ -1,4 +1,5 @@
-import { BookOpen, CalendarDays, Home, Plus, QrCode } from 'lucide-react';
+import { BookOpen, CalendarDays, Home, LogOut, Plus, QrCode } from 'lucide-react';
+import { useState } from 'react';
 import { NavLink, Link } from 'react-router-dom';
 import OfflineStatusBadge from './OfflineStatusBadge';
 import NotificationBell from './NotificationBell';
@@ -12,6 +13,7 @@ const navLink = ({ isActive }) =>
 
 export default function Navbar({
   onShareApp,
+  onSignOut,
   notifications = [],
   unreadNotificationCount = 0,
   onMarkNotificationsRead,
@@ -20,6 +22,8 @@ export default function Navbar({
   notificationSoundEnabled,
   onNotificationSoundEnabledChange,
 }) {
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
+
   return (
     <header className="border-b border-slate-800/80 bg-slate-900/95 backdrop-blur-md sticky top-0 z-40 print:hidden" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-3 px-3 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
@@ -66,6 +70,23 @@ export default function Navbar({
           <Link to="/songs/new" className="inline-flex items-center gap-2 rounded-md bg-amber-500 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-400">
             <Plus size={16} aria-hidden="true" /> Add Song
           </Link>
+          <span className="mx-1 h-5 w-px bg-slate-700/80" aria-hidden="true" />
+          {confirmingSignOut ? (
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2 text-sm font-bold">
+              <span className="text-slate-400">Sign out?</span>
+              <button type="button" onClick={onSignOut} className="text-red-400 transition-colors hover:text-red-300">Yes</button>
+              <span className="text-slate-700" aria-hidden="true">/</span>
+              <button type="button" onClick={() => setConfirmingSignOut(false)} className="text-slate-400 transition-colors hover:text-white">No</button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmingSignOut(true)}
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold text-slate-500 transition-all duration-200 hover:bg-red-950/20 hover:text-red-400"
+            >
+              <LogOut size={16} aria-hidden="true" /> Sign Out
+            </button>
+          )}
         </nav>
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2 lg:hidden">
           <OfflineStatusBadge />
@@ -81,6 +102,22 @@ export default function Navbar({
           <button className="ml-auto inline-flex shrink-0 min-h-10 max-w-full min-w-0 items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm font-bold text-slate-200" type="button" onClick={onShareApp}>
             <QrCode size={16} aria-hidden="true" /> Install QR
           </button>
+          {confirmingSignOut ? (
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2 text-sm font-bold">
+              <button type="button" onClick={onSignOut} className="text-red-400 hover:text-red-300">Yes</button>
+              <span className="text-slate-700" aria-hidden="true">/</span>
+              <button type="button" onClick={() => setConfirmingSignOut(false)} className="text-slate-400 hover:text-white">No</button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmingSignOut(true)}
+              className="icon-button shrink-0 hover:border-red-800/60 hover:bg-red-950/20 hover:text-red-400"
+              aria-label="Sign out"
+            >
+              <LogOut size={16} aria-hidden="true" />
+            </button>
+          )}
         </div>
       </div>
     </header>

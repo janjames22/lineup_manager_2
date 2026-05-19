@@ -584,6 +584,11 @@ export default function App() {
     setAuthLoading(false);
   }
 
+  async function handleSignOut() {
+    await supabase?.auth.signOut();
+    // onAuthStateChange fires with session=null → clears churchId + activeChurch automatically
+  }
+
   const closeUpdatePrompt = () => {
     setOfflineReady(false);
     setNeedUpdate(false);
@@ -607,6 +612,7 @@ export default function App() {
       {showAppChrome && (
         <Navbar
           onShareApp={() => setShareQrOpen(true)}
+          onSignOut={handleSignOut}
           notifications={lineupNotifications}
           unreadNotificationCount={unreadLineupNotifications}
           onMarkNotificationsRead={markLineupNotificationsRead}
