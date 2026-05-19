@@ -1,333 +1,185 @@
-# CCFBC Lineup Manager 2 — Comprehensive Bug Review
-
-**Review Date:** 2026-05-18  
-**Reviewer:** Claude Code  
-**Status:** ✅ ALL 29 BUGS IMPLEMENTED  
-**Scope:** ~70 source files across config, app entry, data layer, API routes, pages, components, hooks, utilities, and PWA/service-worker layers
-
----
-
-## Phase 1 — Configuration & Build
-
-### BUG-001 ✅ FIXED
-**Severity:** Medium  
-**File:** `vite.config.js`  
-**Description:** `web-push` (a Node.js-only package) was listed under `dependencies`. Vite attempted to bundle it into the frontend build, causing build failures or a bloated bundle due to missing Node built-ins (`crypto`, `net`).  
-**Fix:** Added `optimizeDeps: { exclude: ['web-push'] }` to `vite.config.js` to prevent Vite from pre-bundling this server-only package while keeping it in `dependencies` for Vercel serverless runtime use.
-
----
-
-### BUG-002 ✅ FIXED
-**Severity:** Low  
-**File:** `vite.config.js` (manifest section)  
-**Description:** The PWA manifest only defined the 192×192 icon with `purpose: 'any'`. Android adaptive icons require at least one icon with `purpose: 'maskable'` at 192×192.  
-**Fix:** Added a second 192×192 icon entry with `purpose: 'maskable'` to the manifest icons array in `vite.config.js`.
-
----
-
-### BUG-003 ✅ FIXED
-**Severity:** Low  
-**File:** `index.html`  
-**Description:** `<meta name="apple-mobile-web-app-status-bar-style" content="default">` produced a white status bar on iOS, clashing with the app's dark `theme_color: '#0f172a'`.  
-**Fix:** Changed to `content="black-translucent"` in `index.html`.
-
----
-
-### BUG-004 ✅ FIXED
-**Severity:** Low  
-**File:** `src/App.jsx`  
-**Description:** `UPDATE_CACHE_PREFIXES` in `App.jsx` listed `'lineup-manager-app-shell-'` and `'lineup-manager-assets-'`, which never matched the actual Workbox-generated cache names (`lineup-manager-precache-*`, `lineup-manager-runtime-*`, `lineup-manager-{version}`, etc.).  
-**Fix:** Replaced those prefixes with `'lineup-manager-'` (covers all custom caches) and kept `'workbox-precache'` and `'workbox-runtime'` entries in `UPDATE_CACHE_PREFIXES`.
-
----
-
-## Phase 2 — App Entry Point
-
-### BUG-005 ✅ FIXED
-**Severity:** Medium  
-**File:** `src/App.jsx`  
-**Description:** `markWaitingWorkerAvailable` was a plain function inside the component that closed over `refreshAvailableVersionInfo`. Without `useCallback`, the closure could capture a stale reference.  
-**Fix:** Wrapped `markWaitingWorkerAvailable` in `useCallback` with `[refreshAvailableVersionInfo]` as the dependency array.
-
----
-
-### BUG-006 ✅ FIXED
-**Severity:** Low  
-**File:** `src/App.jsx`  
-**Description:** The SW message listener effect included `lineupNotifications` in its dependency array, causing unnecessary listener teardown and re-registration on every new notification.  
-**Fix:** Added `lineupNotificationsRef = useRef([])`, synced it in a separate effect, and removed `lineupNotifications` from the listener effect's dependency array so the listener only registers once.
-
----
-
-### BUG-007 ✅ FIXED
-**Severity:** Low  
-**File:** `src/App.jsx`  
-**Description:** Smart/curly apostrophes (U+2018/U+2019) appeared inside JSX string literals at approximately lines 454–456, causing IDE "Invalid character" diagnostics.  
-**Fix:** Applied byte-level Python replacement to substitute all curly apostrophes with straight ASCII `'` characters.
-
----
-
-## Phase 3 — Data Layer & Storage
-
-### BUG-008 ✅ FIXED
-**Severity:** High  
-**File:** `src/utils/storage.js` (`saveLineup`)  
-**Description:** `markLineupCreatedLocally` was called twice — once before the Supabase insert (with a client-generated temporary ID) and once after. The pre-insert call registered a wrong/temporary ID in the suppression set, potentially suppressing future unrelated notifications.  
-**Fix:** Removed the pre-insert `markLineupCreatedLocally(insertPayload)` call. Only the post-insert call with the confirmed server UUID remains.
-
----
-
-### BUG-009 ✅ FIXED
-**Severity:** High  
-**File:** `src/utils/storage.js` (`deleteSong`, `deleteLineup`)  
-**Description:** When a Supabase delete failed, the error was silently swallowed and the local cache was still cleared, creating permanent server/local divergence.  
-**Fix:** Both `deleteSong` and `deleteLineup` now throw on Supabase failure (converting non-Error objects to Error instances), preventing local cache removal when the server delete fails.
-
----
-
-### BUG-010 ✅ FIXED
-**Severity:** Medium  
-**File:** `src/utils/storage.js`  
-**Description:** Multiple bare `console.log` calls in production code paths exposed internal data structures in production browser consoles.  
-**Fix:** Replaced all bare `console.log` calls in production paths with `debugStorage()` calls, which are guarded by the `IS_DEV` check.
-
----
-
-### BUG-011 ✅ FIXED
-**Severity:** Medium  
-**File:** `src/utils/storage.js` (`getSongById`)  
-**Description:** Non-UUID IDs silently fell through to localStorage with no warning, making debugging difficult.  
-**Fix:** Added a `console.warn` when Supabase is configured but the provided ID is not a valid UUID, then continues to the localStorage fallback.
-
----
-
-### BUG-012 ✅ FIXED
-**Severity:** Low  
-**File:** `src/utils/supabase.js`  
-**Description:** The `supabase` export could be `null`, causing unhelpful crashes in any future code that called methods on it without a null-guard.  
-**Fix:** Added a `requireSupabase()` exported helper that throws a descriptive error if `supabase` is null, providing a safe, descriptive alternative to direct null property access.
-
----
-
-## Phase 4 — API Routes (Vercel Serverless)
-
-### BUG-013 ✅ FIXED
-**Severity:** High  
-**File:** `api/lineup-notifications/mark-read.js`  
-**Description:** No ownership check — any client that knew a notification ID could mark it as read.  
-**Fix:** Now requires `subscriptionEndpoint` or `deviceId` alongside `notificationId`. Returns HTTP 400 if neither is provided. Adds both as additional `WHERE` filters on the update query to enforce ownership.
-
----
-
-### BUG-014 ✅ FIXED
-**Severity:** Medium  
-**File:** `api/_push.js`  
-**Description:** `VAPID_SUBJECT` fell back to `'mailto:admin@example.com'` when unset, affecting push deliverability and identifying the app as belonging to `example.com`.  
-**Fix:** `getVapidConfig()` now throws a 500 error in production when `VAPID_SUBJECT` is missing. In development it logs a warning and uses the placeholder to allow local testing.
-
----
-
-### BUG-015 ✅ FIXED
-**Severity:** Medium  
-**File:** `api/send-lineup-push.js`  
-**Description:** Legacy duplicate endpoint of `api/push/send-lineup.js` was still active, creating maintenance ambiguity.  
-**Fix:** Replaced the entire file body with a delegation import to the canonical handler: `import canonicalHandler from './push/send-lineup.js'; export default canonicalHandler;`
-
----
-
-## Phase 5 — Pages
-
-### BUG-016 ✅ FIXED
-**Severity:** High  
-**File:** `src/pages/LyricsMonitorPage.jsx`  
-**Description:** `lineup?.songs.flatMap(...)` threw a runtime `TypeError` when `lineup.songs` was `undefined`.  
-**Fix:** Changed to `lineup?.songs?.flatMap(...)`.
-
----
-
-### BUG-017 ✅ FIXED
-**Severity:** Low  
-**File:** `src/pages/LineupView.jsx`  
-**Description:** Dead code — the ternary `loading ? 'Loading lineup...' : 'Lineup not found.'` always resolved to `'Lineup not found.'` because the loading early-return already handled the loading state.  
-**Fix:** Removed the dead ternary branch; the code now directly renders `'Lineup not found.'`.
-
----
-
-## Phase 6 — Components
-
-### BUG-018 ✅ FIXED
-**Severity:** Medium  
-**File:** `src/index.css`  
-**Description:** `sm:animate-slide-in-right` was used in `ToastContainer.jsx` but the keyframes were not defined anywhere.  
-**Fix:** Added `@keyframes slideInRight` and the `.sm\:animate-slide-in-right` rule inside a `@media (min-width: 640px)` block in `src/index.css`.
-
----
-
-### BUG-019 ✅ FIXED
-**Severity:** Medium  
-**File:** `src/index.css`  
-**Description:** `animate-slide-down` was used in `UpdatePrompt.jsx` but the keyframes were not defined.  
-**Fix:** Added `.animate-slide-down` class and `@keyframes slideDown` to `src/index.css`.
-
----
-
-### BUG-020 ✅ FIXED
-**Severity:** Medium  
-**File:** `src/components/ShareAppQrModal.jsx`  
-**Description:** `APP_SHARE_URL` was hardcoded to `'https://ccfbc-lineup-manager-code.vercel.app'`, making QR codes wrong on any other deployment.  
-**Fix:** Changed to read from `import.meta.env.VITE_APP_URL` with a fallback to `window.location.origin` at runtime, and the original URL as a final fallback.
-
----
-
-### BUG-021 ✅ FIXED
-**Severity:** Medium  
-**File:** `src/components/PhoneNotificationsButton.jsx`  
-**Description:** A Vercel preview warning message was hardcoded with `'ccfbc-lineup-manager-code.vercel.app'`.  
-**Fix:** Replaced the hardcoded domain with `import.meta.env.VITE_APP_URL || window.location.hostname`.
-
----
-
-### BUG-022 ✅ FIXED
-**Severity:** Low  
-**File:** `src/components/InstallBanner.jsx`  
-**Description:** The Android `beforeinstallprompt` branch called `setTimeout` but did not return a cleanup function. If the component unmounted within the 2-second delay, `setIsVisible` was called on an unmounted component.  
-**Fix:** Added `let delayTimer = null` and cleanup: `if (delayTimer) clearTimeout(delayTimer)` in the effect's return function.
-
----
-
-### BUG-023 ✅ FIXED
-**Severity:** Low  
-**File:** `src/components/OfflineItemButton.jsx`  
-**Description:** `offline.isSaved(item.id)` was called without checking whether `item.id` was defined, silently showing wrong saved state for items without an ID.  
-**Fix:** Added a guard: `const saved = item?.id ? offline.isSaved(item.id) : false`.
-
----
-
-### BUG-024 ✅ FIXED
-**Severity:** Low  
-**File:** `src/components/NotificationBell.jsx`  
-**Description:** `new Date(notification.createdAt).toLocaleString()` rendered `"Invalid Date"` in the UI when `createdAt` was `null` or `undefined`.  
-**Fix:** Added a guard: `notification.createdAt ? new Date(notification.createdAt).toLocaleString() : '—'`.
-
----
-
-### BUG-025 ✅ FIXED
-**Severity:** Low  
-**File:** `src/components/SearchableSongPicker.jsx`  
-**Description:** The combobox input was missing `aria-haspopup="listbox"` required by WAI-ARIA 1.2 for full screen-reader compliance.  
-**Fix:** Added `aria-haspopup="listbox"` to the input element (it already had `role="combobox"` and `aria-expanded`).
-
----
-
-## Phase 7 — PWA / Service Worker
-
-### BUG-026 ✅ FIXED
-**Severity:** Medium  
-**File:** `src/sw.js`  
-**Description:** Both `cleanupOutdatedCaches()` (Workbox built-in) and a manual cache-cleanup block in the `activate` event handler ran on every SW activation, potentially conflicting and deleting caches prematurely.  
-**Fix:** Removed the `cleanupOutdatedCaches()` call. The manual `activate` handler is kept as it is more comprehensive (covers custom caches that Workbox's built-in cleanup doesn't handle).
-
----
-
-### BUG-027 ✅ FIXED
-**Severity:** Medium  
-**File:** `src/sw.js`  
-**Description:** Both `createHandlerBoundToURL` (app-shell cache) and a separate `NavigationRoute` with `NetworkFirst` strategy were registered for navigation, causing inconsistent offline behavior depending on which handler matched first.  
-**Fix:** Added a clarifying comment on the navigation handler explaining the chosen strategy: `NetworkFirst` with a 3-second timeout and the precached `index.html` as fallback — this ensures fresh content when online and graceful offline fallback.
-
----
-
-### BUG-028 ✅ FIXED
-**Severity:** Low  
-**File:** `src/hooks/useLineupNotifications.js`  
-**Description:** `showToastErrorRef.current` was set to `true` on the first channel error and never reset. After the first disconnection, all subsequent errors were silent.  
-**Fix:** Added `showToastErrorRef.current = false` in the `SUBSCRIBED` status handler so the ref resets on every successful reconnect, ensuring the next disconnection produces a toast again.
-
----
-
-### BUG-029 ✅ FIXED
-**Severity:** Low  
-**File:** `src/hooks/useSyncStatus.js`  
-**Description:** The module-level `syncRequest` was a single-slot variable. A second `requestSync` call before the first completed silently overwrote the pending action, dropping the earlier sync.  
-**Fix:** Converted `syncRequest` to `syncQueue` (an array). `requestSync` now pushes to the queue. `runSyncRequest` peeks at the front, shifts on success or non-network error, and recursively processes remaining items. Offline failures leave the current item at the front for retry on reconnect.
-
----
-
-## Summary Table
-
-| Bug ID  | Severity | File (abbreviated)                          | Status | Description                                                           |
-|---------|----------|---------------------------------------------|--------|-----------------------------------------------------------------------|
-| BUG-001 | Medium   | `vite.config.js`                            | ✅     | `web-push` excluded from Vite pre-bundling                            |
-| BUG-002 | Low      | `vite.config.js` (manifest)                 | ✅     | Added 192×192 maskable icon for Android adaptive icons                |
-| BUG-003 | Low      | `index.html`                                | ✅     | iOS status bar style changed to `black-translucent`                   |
-| BUG-004 | Low      | `src/App.jsx`                               | ✅     | Cache name prefixes aligned with actual Workbox-generated names       |
-| BUG-005 | Medium   | `src/App.jsx`                               | ✅     | `markWaitingWorkerAvailable` wrapped in `useCallback`                 |
-| BUG-006 | Low      | `src/App.jsx`                               | ✅     | SW message listener stabilized with ref; no longer re-registers       |
-| BUG-007 | Low      | `src/App.jsx`                               | ✅     | Smart apostrophes replaced with straight ASCII `'`                    |
-| BUG-008 | High     | `src/utils/storage.js` (`saveLineup`)       | ✅     | Pre-insert `markLineupCreatedLocally` call removed                    |
-| BUG-009 | High     | `src/utils/storage.js` (`deleteSong`/`deleteLineup`) | ✅ | Supabase delete errors now propagated; local cache protected       |
-| BUG-010 | Medium   | `src/utils/storage.js`                      | ✅     | Production `console.log` replaced with `debugStorage()` guards        |
-| BUG-011 | Medium   | `src/utils/storage.js` (`getSongById`)      | ✅     | Warning logged for non-UUID IDs when Supabase is configured           |
-| BUG-012 | Low      | `src/utils/supabase.js`                     | ✅     | `requireSupabase()` helper added for safe access                      |
-| BUG-013 | High     | `api/lineup-notifications/mark-read.js`     | ✅     | Ownership check added via `subscriptionEndpoint`/`deviceId`           |
-| BUG-014 | Medium   | `api/_push.js`                              | ✅     | `VAPID_SUBJECT` required in production; throws 500 if missing         |
-| BUG-015 | Medium   | `api/send-lineup-push.js`                   | ✅     | Legacy endpoint now delegates to canonical `api/push/send-lineup.js`  |
-| BUG-016 | High     | `src/pages/LyricsMonitorPage.jsx`           | ✅     | Changed to `lineup?.songs?.flatMap(...)` to guard undefined songs     |
-| BUG-017 | Low      | `src/pages/LineupView.jsx`                  | ✅     | Dead loading ternary removed; renders 'Lineup not found.' directly    |
-| BUG-018 | Medium   | `src/index.css`                             | ✅     | `slideInRight` keyframes and `sm:animate-slide-in-right` defined      |
-| BUG-019 | Medium   | `src/index.css`                             | ✅     | `slideDown` keyframes and `animate-slide-down` class defined          |
-| BUG-020 | Medium   | `src/components/ShareAppQrModal.jsx`        | ✅     | `APP_SHARE_URL` reads from `VITE_APP_URL` env var or `location.origin`|
-| BUG-021 | Medium   | `src/components/PhoneNotificationsButton.jsx` | ✅   | Domain uses `VITE_APP_URL` env var or `location.hostname`             |
-| BUG-022 | Low      | `src/components/InstallBanner.jsx`          | ✅     | `setTimeout` timer tracked and cleared in effect cleanup              |
-| BUG-023 | Low      | `src/components/OfflineItemButton.jsx`      | ✅     | `item.id` guarded before `offline.isSaved()` call                    |
-| BUG-024 | Low      | `src/components/NotificationBell.jsx`       | ✅     | `createdAt` guarded; renders `—` if null/undefined                    |
-| BUG-025 | Low      | `src/components/SearchableSongPicker.jsx`   | ✅     | `aria-haspopup="listbox"` added to combobox input                     |
-| BUG-026 | Medium   | `src/sw.js`                                 | ✅     | `cleanupOutdatedCaches()` removed; manual activate handler kept       |
-| BUG-027 | Medium   | `src/sw.js`                                 | ✅     | Navigation strategy clarified with comment; single consistent handler |
-| BUG-028 | Low      | `src/hooks/useLineupNotifications.js`       | ✅     | Error toast ref resets on `SUBSCRIBED` status                         |
-| BUG-029 | Low      | `src/hooks/useSyncStatus.js`                | ✅     | `syncRequest` converted to `syncQueue` array; earlier requests kept   |
-
-**Total bugs found: 29 — All implemented ✅**
-- Critical: 0
-- High: 4 (BUG-008, BUG-009, BUG-013, BUG-016) — all fixed
-- Medium: 12 — all fixed
-- Low: 13 — all fixed
-
----
-
-## Deployment Notes (New Environment Setup)
-
-When deploying this app to a new Vercel project or domain, the following must be addressed:
-
-1. **Environment Variables (Vercel project settings)**
-   - `VITE_SUPABASE_URL` — Supabase project URL
-   - `VITE_SUPABASE_ANON_KEY` — Supabase anonymous key
-   - `VAPID_PUBLIC_KEY` — VAPID public key (base64url)
-   - `VAPID_PRIVATE_KEY` — VAPID private key (base64url)
-   - `VAPID_SUBJECT` — Must be set to `mailto:your-real-email@domain.com` (required in production per BUG-014 fix)
-   - `VITE_APP_URL` — Public URL of this deployment (used in BUG-020 and BUG-021 fixes)
-   - `SUPABASE_SERVICE_ROLE_KEY` — Server-side Supabase key for API routes
-   - `VITE_APP_VERSION` / `VITE_SERVICE_WORKER_VERSION` — Optional; defaults to git SHA
-
-2. **VAPID key generation** (if starting fresh)
-   ```
-   node -e "const wp = require('web-push'); const keys = wp.generateVAPIDKeys(); console.log(keys);"
-   ```
-   Store the output in the Vercel environment variables above.
-
-3. **Supabase database setup**
-   - Ensure the `lineup_notifications`, `songs`, `lineups`, `push_subscriptions` tables exist with the schema expected by the API routes.
-   - Apply Row Level Security (RLS) policies in Supabase for the `lineup_notifications` table to reinforce the ownership check added in BUG-013.
-
-4. **PWA icon assets** (BUG-002 fix)
-   - Verify `public/icon-192.png` exists and is suitable as a maskable icon (subject centered with safe-zone padding).
-
-5. **Notification sound asset**
-   - Verify `public/sounds/notification.wav` exists in the deployment. It is referenced in `src/utils/notificationAudio.js` and will 404 silently if missing.
-
-6. **`public/version.json`**
-   - The `scripts/write-version-json.mjs` script must run as part of the build process. Ensure it is called in `package.json`'s `build` script or as a Vercel build command.
-
----
-
-*All 29 bugs have been implemented as of 2026-05-18.*
+# Debugging Report
+_Last updated: 2026-05-19_
+
+## Summary
+I audited the React app, serverless API routes, Supabase schema, environment configuration, build tooling, native Capacitor files, and project status documents. The current app code has the recommended `/api/church/create` server endpoint and `JoinChurchPage` now calls it, so the original direct browser insert bug is fixed in source. The largest remaining risks are database/schema drift, incomplete church scoping across reads/realtime/cache/push, and a broken lint setup. I found 5 critical issues, 9 high-priority issues, and 11 lower-priority warnings. `npm test` passes, `npx vite build` passes, `npm run lint` fails.
+
+## 🔴 Critical Issues
+### Repository Schema Does Not Contain Required Church Tables
+- **File:** `supabase-schema.sql` (lines 11, 31, 455-459); `native-app-tutorial.md` (lines 68-105, 123-148, 156-219); `status.md` (lines 27-33)
+- **Problem:** The canonical repo schema creates `songs`, `lineups`, and push tables, but does not create `churches`, `church_members`, `church_id` columns, `my_church_id()`, `is_church_admin()`, or church-scoped RLS policies. The app now depends on those objects in `src/App.jsx`, `src/pages/Dashboard.jsx`, `api/church/create.js`, and `api/church/join.js`.
+- **Impact:** A fresh Supabase database created from `supabase-schema.sql` cannot support login-to-church onboarding. The deployed DB appears to have at least a `churches` table because the user saw a `churches` RLS error, but that state cannot be reproduced safely from the repo.
+- **Fix:** Move Phase 1 SQL from `native-app-tutorial.md` into `supabase-schema.sql`: create `public.churches`, `public.church_members`, add `church_id` to `songs`, `lineups`, `push_subscriptions`, and `lineup_notifications`, add indexes, add helper functions, enable RLS, and create authenticated church-scoped policies. Then run the reconciled migration in Supabase SQL Editor.
+
+### Songs And Lineups Are Still Publicly Writable
+- **File:** `supabase-schema.sql` (lines 466-483, 491-506)
+- **Problem:** RLS is enabled, but policies use `USING (true)` and `WITH CHECK (true)` for public read, insert, update, and delete on both `songs` and `lineups`.
+- **Impact:** Anyone with the anon key embedded in the frontend can read, create, update, or delete all songs and lineups. This defeats admin/member separation and church isolation.
+- **Fix:** Drop the public policies and replace them with authenticated policies scoped by `church_id = public.my_church_id()`, with writes requiring `public.is_church_admin(church_id)`.
+
+### Frontend Data Access Is Not Church-Scoped
+- **File:** `src/utils/storage.js` (lines 451, 501, 530-531, 581, 615, 659, 693-694, 765); `src/hooks/useRealtimeItems.js` (lines 129-134); `src/lib/offlineStorage.js` (lines 3-10, 63-82)
+- **Problem:** Writes attach `church_id` when `getActiveChurchId()` is set, but reads, detail fetches, deletes, realtime subscriptions, live caches, and offline stores are not filtered or namespaced by church.
+- **Impact:** If public policies remain, users can see and mutate all church data. Even after RLS is fixed, local caches/offline records can leak prior church data after account switches or logout. Realtime currently listens to every row change on a table.
+- **Fix:** Require an active church before loading data. Add `.eq('church_id', getActiveChurchId())` to list/detail queries and deletes. Add a Realtime filter such as `filter: church_id=eq.${churchId}`. Namespace localStorage/IndexedDB cache keys by `userId:churchId` or clear them on church change/sign out.
+
+### Push Notifications Are Not Scoped By Church
+- **File:** `api/_push.js` (lines 695-727, 904-909, 965-971); `api/push/send-lineup.js` (lines 36-57); `src/utils/pushNotifications.js` (lines 378-385, 871-883); `native-app-tutorial.md` (lines 101-105)
+- **Problem:** `loadPushSubscriptions()` loads every active subscription unless a specific endpoint is targeted. Subscription save payloads do not include `church_id`, and `send-lineup` does not filter subscribers by the lineup's church.
+- **Impact:** A lineup save can send a notification to every subscribed device across all churches. This is a privacy and trust issue once multiple churches use the app.
+- **Fix:** Add and populate `push_subscriptions.church_id`, pass `churchId` when subscribing, load the lineup including `church_id`, and filter push recipients with `.eq('church_id', lineup.church_id)`.
+
+### Sign Out Leaves Church Data In Browser Storage
+- **File:** `src/App.jsx` (lines 567-590); `src/utils/storage.js` (lines 12-15); `src/lib/offlineStorage.js` (lines 3-10); `src/utils/lineupNotifications.js` (lines 53, 94)
+- **Problem:** Sign out clears `churchId` and `_activeChurchId`, but it does not clear live caches, offline saved items, localStorage fallback data, notification state, or push device metadata.
+- **Impact:** On a shared browser or after switching accounts, a new user can see old cached songs, lineups, and notifications from the prior church.
+- **Fix:** On sign out, clear church-scoped cache keys and notification keys, or migrate every cache to a `userId:churchId` namespace and switch namespaces when the active church changes.
+
+## 🟡 High Priority Issues
+### Create-Church Endpoint Exists But Is Not Atomic
+- **File:** `api/church/create.js` (lines 19-61)
+- **Problem:** The endpoint correctly uses `getSupabaseAdmin()`, verifies the bearer token, inserts `churches`, inserts `church_members` with `role = 'admin'`, and returns `{ church_id }`. However, the two inserts are not wrapped in a database transaction/RPC. If member insert fails and the cleanup delete fails, an orphan church can remain.
+- **Impact:** Partial church records can be created without an admin membership, leaving users stuck at the join screen or creating duplicate slug conflicts later.
+- **Fix:** Create a Postgres RPC such as `create_church_for_user(church_name, slug, display_name, user_id)` that inserts both rows in one transaction, then call it from the service-role endpoint.
+
+### Join-Church Endpoint Ignores Critical Errors
+- **File:** `api/church/join.js` (lines 12, 15, 19-24, 27-32)
+- **Problem:** The route does not check whether `getSupabaseAdmin()` returned `null`, ignores the select error when looking up `invite_code`, and ignores the `upsert` result when adding `church_members`.
+- **Impact:** A missing service-role key can crash the route. Failed membership writes can still return `200`, so the UI thinks the user joined but `loadChurch()` later finds no membership.
+- **Fix:** Mirror the defensive style in `api/church/create.js`: return a clear 500 if admin Supabase is unavailable, check `{ data, error }` for the church lookup, check `{ error }` for the upsert, and return 500/404 as appropriate.
+
+### Auth Bootstrap Can Hang Or Hide RLS Failures
+- **File:** `src/App.jsx` (lines 561-584); `src/utils/supabase.js` (lines 6-16)
+- **Problem:** If Supabase env vars are missing, `supabase?.auth.getSession()` never runs and `authLoading` remains true forever. `loadChurch()` also ignores the `error` from `church_members` and has no try/catch.
+- **Impact:** The app can get stuck on `LoadingScreen`, and RLS or network failures are indistinguishable from "user has no church."
+- **Fix:** If `supabase` is `null`, set `authLoading(false)` and show a configuration error. Wrap `getSession()` and `loadChurch()` in try/catch, log/display `church_members` errors, and only treat missing data as no church when the query succeeds.
+
+### Frontend Push Calls Do Not Send The Required Admin Token
+- **File:** `api/_push.js` (lines 58-67); `api/push/send-lineup.js` (lines 13-15); `src/utils/pushNotifications.js` (lines 704-714, 871-883); `deployment.md` (lines 73-88)
+- **Problem:** Server routes require `PUSH_ADMIN_TOKEN` for broadcast sends, but browser calls to `/api/push/send-lineup` and all-device test sends do not include an Authorization header. The deployment guide says the app passes the token, but the source does not.
+- **Impact:** With `PUSH_ADMIN_TOKEN` set, lineup saves can succeed while push delivery silently fails with `401 Unauthorized`. If the token is removed to make the frontend work, broadcast routes become abusable.
+- **Fix:** Do not expose `PUSH_ADMIN_TOKEN` to the browser. Instead, authenticate the user bearer token server-side and verify admin membership for the lineup's church before sending push notifications.
+
+### API Routes Do Not Handle CORS Or OPTIONS
+- **File:** `api/_push.js` (lines 112-116); `api/church/create.js` (lines 19-23); `api/church/join.js` (lines 3-4)
+- **Problem:** API handlers only allow their concrete methods and do not respond to `OPTIONS` with CORS headers.
+- **Impact:** Same-origin Vercel web calls work, but Capacitor/native WebViews, alternate domains, previews, or future cross-origin clients can fail preflight requests.
+- **Fix:** Add shared CORS handling: allow `OPTIONS`, set `Access-Control-Allow-Origin` to the approved app origins, and allow `Authorization, Content-Type`.
+
+### Full Lint Is Broken
+- **File:** `eslint.config.js` (line 7); `src/components/EmptyState.jsx` (line 3); `src/sw.js` (line 5); `src/components/ShareAppQrModal.jsx` (line 7)
+- **Problem:** `npm run lint` scans generated native web bundles under `android/app/src/main/assets/public` and `ios/App/App/public`. It also finds two source errors and one Fast Refresh warning.
+- **Impact:** CI cannot rely on `npm run lint`, and real source regressions are buried under generated bundle errors. Current result: 334 errors and 1 warning.
+- **Fix:** Ignore `android/**`, `ios/**`, `dist/**`, and `dev-dist/**` in ESLint. Remove unused `cleanupOutdatedCaches`, adjust `EmptyState` so `Icon` is not flagged, and move `APP_SHARE_URL` to a utility module or accept the warning.
+
+### Deployment Documentation Is Out Of Sync With The Schema
+- **File:** `deployment.md` (lines 20-32, 73-88); `supabase-schema.sql` (lines 11, 31, 477-506)
+- **Problem:** The guide says the schema is safe to re-run because tables use `CREATE TABLE IF NOT EXISTS`, but `songs` and `lineups` use plain `CREATE TABLE`. It also says song/lineup writes are restricted to service role, while the schema currently allows public writes.
+- **Impact:** Following the deployment guide can fail on an existing database or give a false sense of security.
+- **Fix:** Update the guide after reconciling `supabase-schema.sql`, and make the schema idempotent for `songs` and `lineups`.
+
+### Vite Dev Server Only Shims Church API Routes
+- **File:** `vite.config.js` (lines 56-60); `src/utils/pushNotifications.js` (line 8)
+- **Problem:** Local Vite middleware handles `/api/church/create` and `/api/church/join`, but no `/api/push/*` or `/api/lineup-notifications/*` routes.
+- **Impact:** Push notification setup and tests fail under `npm run dev` unless using Vercel dev or deployment. This can look like a notification bug when it is a dev-server routing gap.
+- **Fix:** Either document that push testing requires `vercel dev`, or extend the Vite API shim to load all local API routes.
+
+### Dashboard Invite Code Query Silently Fails
+- **File:** `src/pages/Dashboard.jsx` (lines 20-31)
+- **Problem:** The admin invite-code query ignores Supabase errors and only sets invite code if `created_by === session.user.id`.
+- **Impact:** If RLS denies `churches` reads or the user is an admin through `church_members.role` but not `created_by`, the UI shows no invite code and no error.
+- **Fix:** Check `{ data, error }`, show a clear admin/setup message on error, and determine admin status from `church_members.role = 'admin'`.
+
+## 🟢 Low Priority / Warnings
+### Native Push Implementation Is Still Incomplete
+- **File:** `status.md` (lines 64-74, 181-187); `native-app-tutorial.md` (lines 641-746); `.env` (lines 1-8)
+- **Problem:** `@capacitor/push-notifications` is installed and configured, but `src/utils/nativePush.js`, `api/push/subscribe-native.js`, Firebase Admin code, and Firebase env vars are missing.
+- **Impact:** Native iOS/Android push will not work yet. Web Push still works independently once API and environment issues are resolved.
+- **Fix:** Complete Phase 4: add Firebase files/env, native subscribe route, native token table, and server-side native send helper.
+
+### Capacitor Offline Network Plugin Is Pending
+- **File:** `status.md` (lines 77-82); `src/hooks/useOffline.js` (lines 1-6); `native-app-tutorial.md` (lines 756-794)
+- **Problem:** Offline detection uses browser `navigator.onLine`; `@capacitor/network` is not installed.
+- **Impact:** Native WebView offline/online transitions may be less reliable than browser/PWA behavior.
+- **Fix:** Install `@capacitor/network` and update `useOffline`/`useSyncStatus` to listen to Capacitor network status when running natively.
+
+### Vite Env Values Are Loaded After Version Constants Are Computed
+- **File:** `vite.config.js` (lines 12-17, 103-114)
+- **Problem:** `APP_VERSION` and `BUILD_VERSION` are computed before `applyEnv(mode)` loads `.env` into `process.env`.
+- **Impact:** `VITE_APP_VERSION` or `VITE_SERVICE_WORKER_VERSION` from `.env` may be ignored by Vite config. Current `.env` does not set them, so this is a latent config bug.
+- **Fix:** Move `readVersionInfo()` and version constant computation inside `defineConfig` after `applyEnv(mode)`.
+
+### Source Lint Errors Are Small But Real
+- **File:** `src/components/EmptyState.jsx` (line 3); `src/sw.js` (line 5)
+- **Problem:** ESLint flags `Icon` as unused in a destructured default parameter and `cleanupOutdatedCaches` as an unused import.
+- **Impact:** These block lint even after generated native assets are ignored.
+- **Fix:** Destructure `icon` as `IconComponent` inside the function body, and remove the unused `cleanupOutdatedCaches` import.
+
+### Share QR Modal Has A Fast Refresh Warning
+- **File:** `src/components/ShareAppQrModal.jsx` (line 7)
+- **Problem:** The file exports both a component and `APP_SHARE_URL`.
+- **Impact:** Fast Refresh can be less reliable during development.
+- **Fix:** Move `APP_SHARE_URL` to `src/utils/shareUrl.js` and import it into the modal.
+
+### Client Push Logging Still Prints Sensitive Subscription Details
+- **File:** `src/utils/pushNotifications.js` (lines 24-30, 360-369)
+- **Problem:** `logPush()` is unconditional, and line 369 prints the subscription payload including endpoint metadata.
+- **Impact:** Browser console logs can expose semi-sensitive push endpoint/device details.
+- **Fix:** Gate `logPush()` behind `import.meta.env.DEV` or a dedicated debug flag, and never log full endpoints in production.
+
+### Duplicate Notification Writers Remain
+- **File:** `supabase-schema.sql` (lines 621-656); `api/_push.js` (lines 787-841, 969-971)
+- **Problem:** Both the database trigger and API helper can create `lineup_notifications` records for lineup events.
+- **Impact:** Deduplication is better than before, but the architecture still has two writers that can drift.
+- **Fix:** Choose one writer. Prefer the database trigger for created-lineup records, or remove the trigger and make the API the single source.
+
+### API Routes Have No Rate Limiting
+- **File:** `api/church/create.js` (lines 19-61); `api/church/join.js` (lines 3-32); `api/push/send-test.js` (lines 13-60)
+- **Problem:** Authenticated church creation/join and push routes have no per-user/IP rate limits.
+- **Impact:** Abuse can create slug conflicts, spam invalid invite attempts, or flood notification endpoints if auth checks are weakened.
+- **Fix:** Add rate limiting at Vercel edge/middleware, Supabase audit tables, or a small server-side throttling store.
+
+### Native Bundled Web Assets Can Become Stale
+- **File:** `capacitor.config.ts` (line 6); `status.md` (line 60)
+- **Problem:** Capacitor serves from `dist`, but native project assets under `ios/App/App/public` and `android/app/src/main/assets/public` only update after `npx cap sync`.
+- **Impact:** After a web build, native shells can still contain older JS/CSS until sync is run.
+- **Fix:** Always run `npm run build && npx cap sync` before native testing or release. Consider adding a script such as `build:native`.
+
+### Production Bundle Is Large
+- **File:** `vite.config.js` (lines 115-181)
+- **Problem:** `npx vite build` warns that the main JS chunk is larger than 500 kB after minification.
+- **Impact:** Initial load can be slower on mobile networks.
+- **Fix:** Code-split route pages with `React.lazy()` and dynamic imports, or raise the warning only after measuring.
+
+### README Still Describes Public/Local-First Assumptions
+- **File:** `README.md` (lines 33, 47)
+- **Problem:** README says the member-facing notification panel does not need login and data is stored in generic `worshipSongs`/`worshipLineups` localStorage keys.
+- **Impact:** Documentation no longer matches the authenticated, multi-church direction of the app.
+- **Fix:** Update README after schema and cache namespacing are finalized.
+
+## ✅ What Is Working Correctly
+- `api/church/create.js` exists and uses `getSupabaseAdmin()` from `api/_push.js`.
+- `api/church/create.js` only accepts `POST`, requires `Authorization: Bearer <token>`, verifies the token with `supabase.auth.getUser(token)`, inserts `churches`, inserts `church_members` with `role = 'admin'`, and returns `{ church_id }`.
+- `src/pages/JoinChurchPage.jsx` calls `/api/church/create` with `session.access_token` and no longer directly inserts `churches` from the browser.
+- `src/App.jsx` calls `setActiveChurch(id)` in the `onJoined` callback after `setChurchId(id)`.
+- App routes are protected by the top-level auth/church gates in `src/App.jsx`; unauthenticated users see `AuthPage`, authenticated users without a church see `JoinChurchPage`.
+- `src/utils/supabase.js` keeps service-role credentials out of the frontend and only exposes Vite public env vars.
+- `.gitignore` ignores `.env`.
+- `npm test` passes: 1 test file, 20 tests.
+- `npx vite build` passes: 1681 modules transformed and the service worker builds.
+- A local Vite dev server started successfully with elevated local-network permission; `/` returned HTTP 200.
+- Local `/api/church/create` dev probes returned expected JSON errors: `401 Not authenticated` with no bearer token and `401 Invalid token` with a fake token.
+- Supabase storage calls use `AbortController` timeouts in `withTimeout()`.
+- Push subscription, notification history, and delivery log tables have RLS enabled with no public policies in the repo schema.
+
+## 🔧 Recommended Next Actions (in order)
+1. Reconcile `supabase-schema.sql` with Phase 1 multi-tenancy: church tables, `church_id` columns, helper functions, indexes, and church-scoped RLS.
+2. Apply the reconciled SQL in Supabase, then test: sign up, confirm email, log in, create church, reload, and verify `church_members` contains the admin row.
+3. Add church filters to all song/lineup reads, detail fetches, deletes, realtime subscriptions, live caches, and offline storage.
+4. Clear or namespace all local data on sign out and church changes.
+5. Scope push subscriptions and push sends by `church_id`; replace static browser-inaccessible `PUSH_ADMIN_TOKEN` flow with server-side user/admin authorization.
+6. Harden `api/church/join.js` and `api/church/create.js` with full error handling and a transactional RPC for create.
+7. Fix ESLint ignores and the two source lint errors, then make `npm run lint` green.
+8. Update `deployment.md`, `README.md`, and `status.md` so they match the actual schema, auth model, and create-church endpoint.
+9. Decide whether local push testing should use `vercel dev` or extend the Vite API shim for all API routes.
+10. Complete native push and Capacitor network phases only after the web/auth/RLS foundation is stable.

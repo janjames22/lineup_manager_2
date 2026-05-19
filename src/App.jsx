@@ -27,7 +27,7 @@ import AuthPage from './pages/AuthPage';
 import JoinChurchPage from './pages/JoinChurchPage';
 import LoadingScreen from './components/LoadingScreen';
 import { supabase } from './utils/supabase';
-import { setActiveChurch } from './utils/storage';
+import { clearChurchData, setActiveChurch } from './utils/storage';
 
 const UPDATE_CHECK_TIMEOUT_MS = 5000;
 const FOREGROUND_UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
@@ -559,34 +559,47 @@ export default function App() {
   };
 
   useEffect(() => {
-    supabase?.auth.getSession().then(({ data: { session } }) => {
+    if (!supabase) {
+      setAuthLoading(false);
+      return;
+    }
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) loadChurch(session.user.id);
       else setAuthLoading(false);
-    });
-    const { data: { subscription } } = supabase?.auth.onAuthStateChange((_e, session) => {
+    }).catch(() => setAuthLoading(false));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       setSession(session);
       if (session) loadChurch(session.user.id);
       else { setChurchId(null); setActiveChurch(null); setAuthLoading(false); }
-    }) ?? { data: { subscription: { unsubscribe: () => {} } } };
+    });
     return () => subscription.unsubscribe();
   }, []);
 
   async function loadChurch(userId) {
-    const { data } = await supabase
-      .from('church_members')
-      .select('church_id')
-      .eq('user_id', userId)
-      .limit(1)
-      .maybeSingle();  // returns null (not 406) when no membership row exists yet
-    setChurchId(data?.church_id ?? null);
-    setActiveChurch(data?.church_id ?? null);
-    setAuthLoading(false);
+    try {
+      const { data, error } = await supabase
+        .from('church_members')
+        .select('church_id')
+        .eq('user_id', userId)
+        .limit(1)
+        .maybeSingle();
+      if (error) console.error('[Auth] church_members lookup failed:', error.message);
+      setChurchId(data?.church_id ?? null);
+      setActiveChurch(data?.church_id ?? null);
+    } catch (err) {
+      console.error('[Auth] loadChurch failed:', err);
+      setChurchId(null);
+      setActiveChurch(null);
+    } finally {
+      setAuthLoading(false);
+    }
   }
 
   async function handleSignOut() {
+    clearChurchData();
     await supabase?.auth.signOut();
-    // onAuthStateChange fires with session=null → clears churchId + activeChurch automatically
+    // onAuthStateChange fires with session=null → clears remaining React state
   }
 
   const closeUpdatePrompt = () => {

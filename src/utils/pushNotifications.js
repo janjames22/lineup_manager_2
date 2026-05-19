@@ -22,6 +22,7 @@ function debugPush(message, details) {
 }
 
 function logPush(message, details) {
+  if (!IS_DEV) return;
   if (typeof details === 'undefined') {
     console.info(`[PushNotifications] ${message}`);
     return;
@@ -366,7 +367,7 @@ async function saveSubscriptionToServer(subscription) {
   logPush('current device_id', { device_id, storageKey: DEVICE_ID_KEY });
   logPush('current endpoint', { endpoint });
   logPush('payload sent to API', loggedPayload);
-  console.info('[PushNotifications] RESUBSCRIBE_THIS_DEVICE payload sent to /api/push/subscribe', loggedPayload);
+  logPush('RESUBSCRIBE_THIS_DEVICE payload sent to /api/push/subscribe', loggedPayload);
   debugPush('saving subscription through API', {
     endpoint,
     deviceId: device_id,

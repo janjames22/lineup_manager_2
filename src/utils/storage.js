@@ -22,6 +22,14 @@ let _activeChurchId = null;
 export function setActiveChurch(id) { _activeChurchId = id; }
 export function getActiveChurchId() { return _activeChurchId; }
 
+export function clearChurchData() {
+  localStorage.removeItem(SONGS_KEY);
+  localStorage.removeItem(LINEUPS_KEY);
+  localStorage.removeItem(LIVE_SONGS_CACHE_KEY);
+  localStorage.removeItem(LIVE_LINEUPS_CACHE_KEY);
+  _activeChurchId = null;
+}
+
 function debugStorage(message, details) {
   if (!IS_DEV) return;
   if (typeof details === 'undefined') {

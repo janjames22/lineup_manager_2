@@ -1,6 +1,7 @@
 import { FileQuestion } from 'lucide-react';
 
-export default function EmptyState({ title, message, action, icon: Icon = FileQuestion }) {
+export default function EmptyState({ title, message, action, icon }) {
+  const Icon = icon ?? FileQuestion;
   return (
     <div className="flex flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-800/70 bg-slate-900/20 p-6 text-center transition hover:border-slate-700 sm:p-12">
       <div className="mb-4 grid size-16 place-items-center rounded-2xl bg-slate-800 text-slate-500 shadow-inner ring-1 ring-white/10 sm:mb-6 sm:size-20 sm:rounded-3xl">

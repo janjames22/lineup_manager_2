@@ -18,17 +18,26 @@ export default function Dashboard({ onShareApp, session, churchId }) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (!session?.user?.id || !churchId) return;
-    supabase
-      ?.from('churches')
-      .select('invite_code, created_by')
-      .eq('id', churchId)
-      .single()
-      .then(({ data }) => {
-        if (data?.created_by === session.user.id) {
-          setInviteCode(data.invite_code);
-        }
-      });
+    if (!session?.user?.id || !churchId || !supabase) return;
+    (async () => {
+      const { data: member, error: memberError } = await supabase
+        .from('church_members')
+        .select('role')
+        .eq('church_id', churchId)
+        .eq('user_id', session.user.id)
+        .single();
+      if (memberError || member?.role !== 'admin') return;
+      const { data: church, error: churchError } = await supabase
+        .from('churches')
+        .select('invite_code')
+        .eq('id', churchId)
+        .single();
+      if (churchError) {
+        console.error('[Dashboard] invite code fetch failed:', churchError.message);
+        return;
+      }
+      if (church?.invite_code) setInviteCode(church.invite_code);
+    })();
   }, [session, churchId]);
 
   function handleCopy() {

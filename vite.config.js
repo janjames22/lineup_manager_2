@@ -100,17 +100,17 @@ function readVersionInfo() {
   }
 }
 
-const VERSION_INFO = readVersionInfo();
-const APP_VERSION = process.env.VITE_APP_VERSION || VERSION_INFO.version || 'dev';
-const BUILD_VERSION =
-  process.env.VITE_SERVICE_WORKER_VERSION ||
-  VERSION_INFO.serviceWorkerVersion ||
-  VERSION_INFO.version ||
-  process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 8) ||
-  new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
-
 export default defineConfig(({ mode }) => {
   applyEnv(mode);
+
+  const VERSION_INFO = readVersionInfo();
+  const APP_VERSION = process.env.VITE_APP_VERSION || VERSION_INFO.version || 'dev';
+  const BUILD_VERSION =
+    process.env.VITE_SERVICE_WORKER_VERSION ||
+    VERSION_INFO.serviceWorkerVersion ||
+    VERSION_INFO.version ||
+    process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 8) ||
+    new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
 
   return {
   define: {
