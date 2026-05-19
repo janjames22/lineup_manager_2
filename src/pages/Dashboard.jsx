@@ -1,5 +1,5 @@
-import { CalendarPlus, Library, Music2, Monitor, QrCode } from 'lucide-react';
-import { useMemo } from 'react';
+import { CalendarPlus, Check, Copy, Library, Monitor, Music2, QrCode, Users } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import SongCard from '../components/SongCard';
@@ -7,12 +7,37 @@ import LoadingScreen from '../components/LoadingScreen';
 import { useLineups } from '../hooks/useLineups';
 import { useOfflineItems } from '../hooks/useOfflineItems';
 import { useSongs } from '../hooks/useSongs';
+import { supabase } from '../utils/supabase';
 
-export default function Dashboard({ onShareApp }) {
+export default function Dashboard({ onShareApp, session, churchId }) {
   const { songs, loading: songsLoading } = useSongs();
   const { lineups, loading: lineupsLoading } = useLineups();
   const offlineSongs = useOfflineItems('song');
   const loading = songsLoading || lineupsLoading;
+  const [inviteCode, setInviteCode] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!session?.user?.id || !churchId) return;
+    supabase
+      ?.from('churches')
+      .select('invite_code, created_by')
+      .eq('id', churchId)
+      .single()
+      .then(({ data }) => {
+        if (data?.created_by === session.user.id) {
+          setInviteCode(data.invite_code);
+        }
+      });
+  }, [session, churchId]);
+
+  function handleCopy() {
+    if (!inviteCode) return;
+    navigator.clipboard?.writeText(inviteCode).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = useMemo(() => (
     lineups
@@ -117,6 +142,36 @@ export default function Dashboard({ onShareApp }) {
           </div>
         </div>
       </section>
+
+      {inviteCode && (
+        <section className="mt-5 sm:mt-6">
+          <div className="panel">
+            <div className="flex min-w-0 items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-emerald-400">Admin</p>
+                <h2 className="section-title">Your Church Invite Code</h2>
+                <p className="mt-1 text-sm text-slate-400">Share this code with your members so they can join your church.</p>
+              </div>
+              <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-emerald-950/50 text-emerald-400 shadow-sm ring-1 ring-white/10">
+                <Users size={20} aria-hidden="true" />
+              </span>
+            </div>
+            <div className="mt-5 flex items-center gap-3">
+              <code className="min-w-0 flex-1 rounded-xl border border-slate-700/60 bg-slate-950/60 px-4 py-3 text-center font-mono text-2xl font-black tracking-[0.25em] text-white sm:text-3xl">
+                {inviteCode}
+              </code>
+              <button
+                type="button"
+                onClick={handleCopy}
+                className={copied ? 'btn-secondary shrink-0 border-emerald-700/50 text-emerald-400' : 'btn-secondary shrink-0'}
+              >
+                {copied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="mt-12">
         <div className="mb-5 flex min-w-0 flex-wrap items-center gap-3">

@@ -641,7 +641,7 @@ export default function App() {
       <div className="mx-auto w-full max-w-7xl min-w-0">
         <LineupRealtimeContext.Provider value={handleLineupChange}>
           <Routes>
-            <Route path="/" element={<Dashboard onShareApp={() => setShareQrOpen(true)} />} />
+            <Route path="/" element={<Dashboard onShareApp={() => setShareQrOpen(true)} session={session} churchId={churchId} />} />
             <Route path="/songs" element={<SongLibrary />} />
             <Route path="/songs/new" element={<SongForm />} />
             <Route path="/songs/add" element={<Navigate to="/songs/new" replace />} />
