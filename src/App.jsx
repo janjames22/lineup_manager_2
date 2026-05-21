@@ -28,6 +28,7 @@ import JoinChurchPage from './pages/JoinChurchPage';
 import LoadingScreen from './components/LoadingScreen';
 import { supabase } from './utils/supabase';
 import { clearChurchData, setActiveChurch } from './utils/storage';
+import { registerNativePush } from './utils/nativePush';
 
 const UPDATE_CHECK_TIMEOUT_MS = 5000;
 const FOREGROUND_UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
@@ -565,13 +566,17 @@ export default function App() {
     }
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) loadChurch(session.user.id);
-      else setAuthLoading(false);
+      if (session) {
+        loadChurch(session.user.id);
+        registerNativePush(session.user.id).catch(err => console.warn('[nativePush] getSession register failed:', err));
+      } else setAuthLoading(false);
     }).catch(() => setAuthLoading(false));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       setSession(session);
-      if (session) loadChurch(session.user.id);
-      else { setChurchId(null); setActiveChurch(null); setAuthLoading(false); }
+      if (session) {
+        loadChurch(session.user.id);
+        registerNativePush(session.user.id).catch(err => console.warn('[nativePush] onAuthStateChange register failed:', err));
+      } else { setChurchId(null); setActiveChurch(null); setAuthLoading(false); }
     });
     return () => subscription.unsubscribe();
   }, []);

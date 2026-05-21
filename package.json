@@ -20,6 +20,7 @@
     "@supabase/supabase-js": "^2.39.0",
     "@tailwindcss/vite": "^4.2.4",
     "@vitejs/plugin-react": "^6.0.1",
+    "firebase-admin": "^13.10.0",
     "idb": "^8.0.3",
     "lucide-react": "^0.475.0",
     "react": "^19.0.0",

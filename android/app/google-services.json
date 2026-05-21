@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "97500497083",
+    "project_id": "lineup-manager-b96ac",
+    "storage_bucket": "lineup-manager-b96ac.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:97500497083:android:937daf7a3cf2dbb274559e",
+        "android_client_info": {
+          "package_name": "com.ccfbc.lineupmanager"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCwczmc0FgqN_E2v3xFxkKbFNUGgCBtSns"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
