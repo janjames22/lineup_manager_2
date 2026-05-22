@@ -26,9 +26,10 @@ import { LineupRealtimeContext } from './contexts/LineupRealtimeContext';
 import AuthPage from './pages/AuthPage';
 import JoinChurchPage from './pages/JoinChurchPage';
 import LoadingScreen from './components/LoadingScreen';
-import { supabase } from './utils/supabase';
-import { clearChurchData, setActiveChurch } from './utils/storage';
+import { supabase, getStoredSession } from './utils/supabase';
+import { clearChurchData, setActiveChurch, getActiveChurchId } from './utils/storage';
 import { registerNativePush } from './utils/nativePush';
+import { useOffline } from './hooks/useOffline';
 
 const UPDATE_CHECK_TIMEOUT_MS = 5000;
 const FOREGROUND_UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
@@ -112,6 +113,9 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [churchId, setChurchId] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const isOffline = useOffline();
+  const isOfflineRef = useRef(false);
+  isOfflineRef.current = isOffline;
   const { showToast } = useToast();
   const {
     notifications: lineupNotifications,
@@ -564,24 +568,69 @@ export default function App() {
       setAuthLoading(false);
       return;
     }
+
+    function applyOfflineFallback(reason) {
+      const storedSession = getStoredSession();
+      const cachedChurchId = getActiveChurchId();
+      console.log(`[Auth] ${reason} — offline fallback | storedUser: ${storedSession?.user?.id ?? 'none'} | cachedChurchId: ${cachedChurchId ?? 'none'}`);
+      if (storedSession?.user?.id && cachedChurchId) {
+        console.log('[Auth] Restoring session from localStorage cache');
+        setSession(storedSession);
+        setChurchId(cachedChurchId);
+      } else {
+        console.log('[Auth] No usable offline cache — showing auth screen');
+      }
+      setAuthLoading(false);
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+      console.log(`[Auth] getSession: ${session ? `uid=${session.user.id}` : 'null'} | offline: ${isOfflineRef.current}`);
       if (session) {
+        setSession(session);
         loadChurch(session.user.id);
         registerNativePush(session.user.id).catch(err => console.warn('[nativePush] getSession register failed:', err));
-      } else setAuthLoading(false);
-    }).catch(() => setAuthLoading(false));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      setSession(session);
+      } else if (isOfflineRef.current) {
+        applyOfflineFallback('getSession null while offline');
+      } else {
+        console.log('[Auth] getSession null, online — showing auth screen');
+        setAuthLoading(false);
+      }
+    }).catch((err) => {
+      console.error('[Auth] getSession threw:', err, '| offline:', isOfflineRef.current);
+      applyOfflineFallback('getSession error');
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log(`[Auth] onAuthStateChange: event=${event} | session=${session ? `uid=${session.user.id}` : 'null'} | offline=${isOfflineRef.current}`);
       if (session) {
+        setSession(session);
         loadChurch(session.user.id);
         registerNativePush(session.user.id).catch(err => console.warn('[nativePush] onAuthStateChange register failed:', err));
-      } else { setChurchId(null); setActiveChurch(null); setAuthLoading(false); }
+      } else if (event === 'SIGNED_OUT') {
+        if (isOfflineRef.current) {
+          // Failed token refresh while offline — not a real sign-out, preserve state.
+          console.log('[Auth] SIGNED_OUT while offline — ignoring, keeping cached session');
+        } else {
+          console.log('[Auth] SIGNED_OUT while online — clearing auth state');
+          setSession(null);
+          setChurchId(null);
+          setActiveChurch(null);
+          setAuthLoading(false);
+        }
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
 
   async function loadChurch(userId) {
+    const cachedId = getActiveChurchId();
+    console.log(`[Auth] loadChurch uid=${userId} | offline=${isOfflineRef.current} | cachedChurchId=${cachedId ?? 'none'}`);
+    if (isOfflineRef.current) {
+      console.log('[Auth] loadChurch — offline, using cached church ID:', cachedId);
+      setChurchId(cachedId);
+      setAuthLoading(false);
+      return;
+    }
     try {
       const { data, error } = await supabase
         .from('church_members')
@@ -589,13 +638,20 @@ export default function App() {
         .eq('user_id', userId)
         .limit(1)
         .maybeSingle();
-      if (error) console.error('[Auth] church_members lookup failed:', error.message);
-      setChurchId(data?.church_id ?? null);
-      setActiveChurch(data?.church_id ?? null);
+      if (error) {
+        console.error('[Auth] church_members lookup failed:', error.message, '| falling back to cachedId:', cachedId);
+        setChurchId(cachedId ?? null);
+        setActiveChurch(cachedId ?? null);
+      } else {
+        console.log('[Auth] church_members result:', data?.church_id ?? 'null');
+        setChurchId(data?.church_id ?? null);
+        setActiveChurch(data?.church_id ?? null);
+      }
     } catch (err) {
-      console.error('[Auth] loadChurch failed:', err);
-      setChurchId(null);
-      setActiveChurch(null);
+      // Network failure mid-request (e.g. connection dropped after isOfflineRef was read).
+      console.error('[Auth] loadChurch threw (likely network):', err.message, '| offline:', isOfflineRef.current, '| falling back to cachedId:', cachedId);
+      setChurchId(cachedId ?? null);
+      setActiveChurch(cachedId ?? null);
     } finally {
       setAuthLoading(false);
     }

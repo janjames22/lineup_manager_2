@@ -13,13 +13,18 @@ const SONGS_KEY = 'worshipSongs';
 const LINEUPS_KEY = 'worshipLineups';
 const LIVE_SONGS_CACHE_KEY = 'worshipSongsLiveCache';
 const LIVE_LINEUPS_CACHE_KEY = 'worshipLineupsLiveCache';
+const ACTIVE_CHURCH_KEY = 'activeChurchId';
 const SUPABASE_TIMEOUT_MS = 10000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DEFAULT_LYRICS_MONITOR_THEME = 'Dark Void';
 const IS_DEV = import.meta.env.DEV;
 
-let _activeChurchId = null;
-export function setActiveChurch(id) { _activeChurchId = id; }
+let _activeChurchId = localStorage.getItem(ACTIVE_CHURCH_KEY) || null;
+export function setActiveChurch(id) {
+  _activeChurchId = id;
+  if (id) localStorage.setItem(ACTIVE_CHURCH_KEY, id);
+  else localStorage.removeItem(ACTIVE_CHURCH_KEY);
+}
 export function getActiveChurchId() { return _activeChurchId; }
 
 export function clearChurchData() {
@@ -27,6 +32,7 @@ export function clearChurchData() {
   localStorage.removeItem(LINEUPS_KEY);
   localStorage.removeItem(LIVE_SONGS_CACHE_KEY);
   localStorage.removeItem(LIVE_LINEUPS_CACHE_KEY);
+  localStorage.removeItem(ACTIVE_CHURCH_KEY);
   _activeChurchId = null;
 }
 

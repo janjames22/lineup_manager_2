@@ -26,3 +26,20 @@ export function requireSupabase() {
   }
   return supabase;
 }
+
+// Read Supabase's raw stored session from localStorage without a network call.
+// Key format: sb-{projectRef}-auth-token (derived by supabase-js from the URL).
+// Useful when getSession() returns null because the access token expired offline.
+// The stored session still has valid user data (id, email) even when the token is stale.
+export function getStoredSession() {
+  try {
+    const projectRef = supabaseUrl?.match(/https?:\/\/([^.]+)\./)?.[1];
+    if (!projectRef) return null;
+    const raw = localStorage.getItem(`sb-${projectRef}-auth-token`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.user?.id ? parsed : null;
+  } catch {
+    return null;
+  }
+}
