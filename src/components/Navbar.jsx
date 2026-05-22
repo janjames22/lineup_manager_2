@@ -1,4 +1,4 @@
-import { BookOpen, CalendarDays, Home, LogOut, Plus, QrCode } from 'lucide-react';
+import { BookOpen, CalendarDays, Home, LogOut, Plus, QrCode, Settings } from 'lucide-react';
 import { useState } from 'react';
 import { NavLink, Link } from 'react-router-dom';
 import OfflineStatusBadge from './OfflineStatusBadge';
@@ -63,6 +63,9 @@ export default function Navbar({
           </NavLink>
           <NavLink to="/lineups" className={navLink}>
             <CalendarDays size={16} aria-hidden="true" /> Lineups
+          </NavLink>
+          <NavLink to="/settings" className={navLink}>
+            <Settings size={16} aria-hidden="true" /> Settings
           </NavLink>
           <button className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm font-bold text-slate-300 transition-all duration-200 hover:border-slate-600 hover:bg-slate-800 hover:text-white" type="button" onClick={onShareApp}>
             <QrCode size={16} aria-hidden="true" /> Share App QR

@@ -1,4 +1,4 @@
-import { BookOpen, CalendarDays, Home, Plus } from 'lucide-react';
+import { BookOpen, CalendarDays, Home, Plus, Settings } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 
 function UnreadBadge({ count }) {
@@ -62,14 +62,14 @@ export default function BottomNav({ unreadNotificationCount = 0 }) {
           </span>
         )}
       </NavLink>
-      <NavLink to="/lineups/new">
+      <NavLink to="/settings">
         {({ isActive }) => (
           <span className={`relative flex min-w-0 max-w-full flex-col items-center justify-center gap-0.5 py-1 transition-colors duration-200 ${isActive ? 'text-blue-400' : 'text-slate-500 hover:text-slate-300'}`}>
-            <Plus size={22} />
+            <Settings size={22} />
             {isActive && (
               <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 size-1 rounded-full bg-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.8)]" aria-hidden="true" />
             )}
-            <span className={`max-w-full truncate text-[9px] uppercase tracking-normal min-[380px]:text-[10px] ${isActive ? 'font-black' : 'font-bold'}`}>New</span>
+            <span className={`max-w-full truncate text-[9px] uppercase tracking-normal min-[380px]:text-[10px] ${isActive ? 'font-black' : 'font-bold'}`}>Settings</span>
           </span>
         )}
       </NavLink>
