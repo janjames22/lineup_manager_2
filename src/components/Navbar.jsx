@@ -19,8 +19,6 @@ export default function Navbar({
   onMarkNotificationsRead,
   onMarkNotificationRead,
   onClearNotification,
-  notificationSoundEnabled,
-  onNotificationSoundEnabledChange,
 }) {
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
 
@@ -52,8 +50,6 @@ export default function Navbar({
             onMarkAllRead={onMarkNotificationsRead}
             onMarkNotificationRead={onMarkNotificationRead}
             onClearNotification={onClearNotification}
-            soundEnabled={notificationSoundEnabled}
-            onSoundEnabledChange={onNotificationSoundEnabledChange}
           />
           <NavLink to="/" className={navLink}>
             <Home size={16} aria-hidden="true" /> Dashboard
@@ -99,8 +95,6 @@ export default function Navbar({
             onMarkAllRead={onMarkNotificationsRead}
             onMarkNotificationRead={onMarkNotificationRead}
             onClearNotification={onClearNotification}
-            soundEnabled={notificationSoundEnabled}
-            onSoundEnabledChange={onNotificationSoundEnabledChange}
           />
           <button className="ml-auto inline-flex shrink-0 min-h-10 max-w-full min-w-0 items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm font-bold text-slate-200" type="button" onClick={onShareApp}>
             <QrCode size={16} aria-hidden="true" /> Install QR

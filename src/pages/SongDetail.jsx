@@ -7,7 +7,9 @@ import ChordChartViewer from '../components/ChordChartViewer';
 import OfflineItemButton from '../components/OfflineItemButton';
 import { formatBpm } from '../utils/constants';
 import { deleteSong, getSongById } from '../utils/storage';
+import { sendSongPushNotification } from '../utils/pushNotifications';
 import { useToast } from '../hooks/useToast';
+import { useDispatchLocalNotification } from '../contexts/NotificationsContext';
 import { useOfflineItems } from '../hooks/useOfflineItems';
 import { getTransposedKey, transposeChords } from '../utils/transposeChords';
 
@@ -21,6 +23,7 @@ export default function SongDetail() {
   const [transposeAmount, setTransposeAmount] = useState(0);
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
+  const dispatchLocalNotification = useDispatchLocalNotification();
   const offlineSongs = useOfflineItems('song');
 
   useEffect(() => {
@@ -55,7 +58,15 @@ export default function SongDetail() {
   const remove = async () => {
     if (window.confirm(`Are you sure you want to delete "${song.title}"?`)) {
       try {
+        sendSongPushNotification(song, { eventType: 'DELETE' }).catch(console.error);
         await deleteSong(song.id);
+        dispatchLocalNotification?.({
+          type: 'song_deleted',
+          title: `Song removed: ${song.title}`,
+          songId: song.id,
+          url: '/songs',
+          id: `local-song-deleted-${song.id}-${Date.now()}`,
+        });
         showToast(`Song "${song.title}" deleted`, 'info');
         navigate('/songs');
       } catch {

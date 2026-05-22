@@ -7,7 +7,7 @@ import {
   getOfflineSongs,
 } from './offlineSync';
 import { markLineupCreatedLocally } from './lineupNotifications';
-import { sendLineupPushNotification } from './pushNotifications';
+import { sendLineupPushNotification, sendSongPushNotification } from './pushNotifications';
 
 const SONGS_KEY = 'worshipSongs';
 const LINEUPS_KEY = 'worshipLineups';
@@ -533,7 +533,7 @@ export async function getSongById(id) {
   return localMatch ? normalizeSong(localMatch) : null;
 }
 
-export async function saveSong(song) {
+export async function saveSong(song, { notify = true } = {}) {
   const nextSong = normalizeSong(song);
   debugStorage('Saving song payload:', nextSong);
 
@@ -561,7 +561,7 @@ export async function saveSong(song) {
           'Supabase insertSong'
         );
       }
-      
+
       if (result.error) {
         console.error('Supabase saveSong error:', result.error.message);
         throw new Error(result.error.message);
@@ -573,6 +573,19 @@ export async function saveSong(song) {
           ? cachedSongs.map((item) => (item.id === savedSong.id ? savedSong : item))
           : [savedSong, ...cachedSongs];
         saveLiveSongsCache(nextCache);
+
+        if (notify && savedSong.id) {
+          try {
+            const pushResult = await sendSongPushNotification(savedSong, {
+              eventType: hasSupabaseId ? 'UPDATE' : 'CREATE',
+            });
+            return { ...savedSong, pushResult };
+          } catch (err) {
+            console.error('[SongNotifications] failed to send push notification:', err);
+            return { ...savedSong, pushError: err?.message || 'Song saved, but push notification failed.' };
+          }
+        }
+
         return savedSong;
       }
     } catch (err) {
@@ -582,7 +595,7 @@ export async function saveSong(song) {
   } else {
     debugStorage('Supabase not configured, using localStorage fallback for saveSong');
   }
-  
+
   // Fallback to localStorage
   return saveLocalSong(nextSong);
 }

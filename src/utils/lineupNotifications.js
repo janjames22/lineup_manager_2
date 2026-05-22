@@ -135,16 +135,25 @@ export function createLineupNotification(lineup = {}, eventType = 'INSERT') {
 }
 
 export function createLineupNotificationFromPush(pushNotification = {}) {
-  const lineupId = pushNotification.lineupId || pushNotification.lineup_id;
-  if (!lineupId) return null;
+  const lineupId = pushNotification.lineupId || pushNotification.lineup_id || null;
+  const songId = pushNotification.songId || pushNotification.song_id || null;
+  const notificationType = pushNotification.notificationType || pushNotification.type || '';
+  const isSong = notificationType === 'song' || notificationType.startsWith('song_');
+
+  if (!lineupId && !isSong) return null;
+  if (isSong && !songId && !pushNotification.url) return null;
+
+  const url = pushNotification.url
+    || (lineupId ? `/lineups/${lineupId}` : songId ? `/songs/${songId}` : '/');
 
   return {
-    id: pushNotification.notificationId || pushNotification.id || `push-lineup-${lineupId}-${Date.now()}`,
-    type: pushNotification.type || 'lineup',
-    title: pushNotification.title || 'Line Up Updated',
+    id: pushNotification.notificationId || pushNotification.id || `push-${lineupId || songId}-${Date.now()}`,
+    type: notificationType || (lineupId ? 'lineup_created' : 'song_updated'),
+    title: pushNotification.title || (lineupId ? 'Line Up Updated' : 'Song Updated'),
     lineupId,
-    url: pushNotification.url || `/lineups/${lineupId}`,
-    message: pushNotification.message || pushNotification.body || 'Tap to open lineup',
+    songId,
+    url,
+    message: pushNotification.message || pushNotification.body || 'Tap to view',
     date: pushNotification.date || '',
     serviceTime: pushNotification.serviceTime || pushNotification.service_time || '',
     createdAt: pushNotification.createdAt || pushNotification.timestamp || new Date().toISOString(),

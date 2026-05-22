@@ -62,7 +62,8 @@ export default function useLineupNotifications() {
       playSound = true,
     } = options;
 
-    if (!notification?.id || !notification?.lineupId) return false;
+    if (!notification?.id) return false;
+    if (!notification.lineupId && !notification.songId && !notification.url) return false;
 
     // Primary dedup by full notification ID.
     if (notifiedNotificationIdsRef.current.has(notification.id)) {
@@ -72,9 +73,10 @@ export default function useLineupNotifications() {
 
     // Secondary cross-channel dedup: Realtime and push can deliver the same
     // event with slightly different timestamps, producing different IDs. Key
-    // by (lineupId, eventType) so a duplicate from either channel is dropped.
-    const eventSlug = String(notification.type || '').replace('lineup_', '') || 'event';
-    const channelDedupeKey = `${notification.lineupId}:${eventSlug}`;
+    // by (entityId, eventType) so a duplicate from either channel is dropped.
+    const eventSlug = String(notification.type || '').replace('lineup_', '').replace('song_', '') || 'event';
+    const entityId = notification.lineupId || notification.songId || 'unknown';
+    const channelDedupeKey = `${entityId}:${eventSlug}`;
     if (notifiedNotificationIdsRef.current.has(channelDedupeKey)) {
       debugLineupNotifications('notification skipped by cross-channel dedup', channelDedupeKey);
       return false;
@@ -201,6 +203,21 @@ export default function useLineupNotifications() {
     setBannerNotification(null);
   }, []);
 
+  const dispatchLocalNotification = useCallback(({ type, title, lineupId, songId, url, id }) => {
+    const notification = {
+      id: id || `local-${Date.now()}`,
+      type: type || 'song_updated',
+      title: title || 'Update',
+      lineupId: lineupId || null,
+      songId: songId || null,
+      url: url || '/',
+      message: title || '',
+      createdAt: new Date().toISOString(),
+      read: false,
+    };
+    addNotification(notification, { showBanner: true, showToastMessage: false, playSound: true });
+  }, [addNotification]);
+
   return {
     notifications,
     unreadCount: notifications.filter((notification) => !notification.read).length,
@@ -211,6 +228,7 @@ export default function useLineupNotifications() {
     dismissBannerNotification,
     handleLineupChange,
     receivePushNotification,
+    dispatchLocalNotification,
     soundEnabled,
     setSoundEnabled,
   };

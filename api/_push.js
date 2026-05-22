@@ -736,30 +736,34 @@ export function formatLineupBody(lineup = {}) {
 
 export function createPushPayload({
   type,
+  notificationType,
   title,
   body,
   url,
   tag,
   lineupId,
+  songId,
   timestamp,
   notificationId,
   createdAt,
   renotify = true,
 }) {
   const createdTimestamp = createdAt || timestamp || new Date().toISOString();
-  const resolvedType = type || (lineupId ? 'lineup' : 'test');
+  const resolvedType = type || (lineupId ? 'lineup' : songId ? 'song' : 'test');
   const resolvedNotificationId = notificationId || randomUUID();
 
   return JSON.stringify({
     type: resolvedType,
+    notificationType: notificationType || null,
     notificationId: resolvedNotificationId,
     id: resolvedNotificationId,
     title: title || 'Line Up Manager',
     body: body || 'New notification',
-    url: url || (lineupId ? `/lineups/${lineupId}` : '/'),
-    tag: tag || (lineupId ? `lineup-${lineupId}` : 'lineup-manager'),
+    url: url || (lineupId ? `/lineups/${lineupId}` : songId ? `/songs/${songId}` : '/'),
+    tag: tag || (lineupId ? `lineup-${lineupId}` : songId ? `song-${songId}` : 'lineup-manager'),
     renotify,
     lineupId: lineupId || null,
+    songId: songId || null,
     createdAt: createdTimestamp,
     timestamp: createdTimestamp,
     icon: '/icon-192.png',

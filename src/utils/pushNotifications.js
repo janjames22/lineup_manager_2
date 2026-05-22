@@ -6,6 +6,8 @@ const LEGACY_PUSH_DEVICE_ID_KEY = 'lineupManagerPushDeviceId';
 const DEVICE_ID_KEY = 'ccfbc_device_id';
 const STABLE_PRODUCTION_HOST = 'ccfbc-lineup-manager-code.vercel.app';
 const API_BASE = '/api/push';
+// Set VITE_PUSH_ADMIN_TOKEN in .env (same value as server-side PUSH_ADMIN_TOKEN).
+const PUSH_ADMIN_TOKEN = import.meta.env.VITE_PUSH_ADMIN_TOKEN || '';
 const IS_DEV = import.meta.env.DEV;
 const BUILD_VERSION = typeof __APP_BUILD_VERSION__ === 'string' ? __APP_BUILD_VERSION__ : 'dev';
 const APP_VERSION = import.meta.env.VITE_APP_VERSION || (typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : BUILD_VERSION);
@@ -873,7 +875,10 @@ export async function sendLineupPushNotification(lineup, { eventType = 'UPDATE',
     `${API_BASE}/send-lineup`,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(PUSH_ADMIN_TOKEN ? { Authorization: `Bearer ${PUSH_ADMIN_TOKEN}` } : {}),
+      },
       body: JSON.stringify({
         lineupId: lineup.id,
         url: targetUrl,
@@ -886,5 +891,31 @@ export async function sendLineupPushNotification(lineup, { eventType = 'UPDATE',
   );
 
   debugPush('lineup push send result', result);
+  return result;
+}
+
+export async function sendSongPushNotification(song, { eventType = 'CREATE', excludeCurrentDevice = true } = {}) {
+  if (!song?.title) return null;
+
+  const result = await fetchJson(
+    `${API_BASE}/send-song`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(PUSH_ADMIN_TOKEN ? { Authorization: `Bearer ${PUSH_ADMIN_TOKEN}` } : {}),
+      },
+      body: JSON.stringify({
+        songId: song.id || null,
+        songTitle: song.title,
+        eventType,
+        url: song.id ? `/songs/${song.id}` : '/songs',
+        excludeEndpoint: excludeCurrentDevice ? getStoredPushSubscriptionEndpoint() : '',
+      }),
+    },
+    'Unable to send song push notification.'
+  );
+
+  debugPush('song push send result', result);
   return result;
 }

@@ -23,6 +23,7 @@ import useLineupNotifications from './hooks/useLineupNotifications';
 import ShareAppQrModal from './components/ShareAppQrModal';
 import { unlockNotificationAudio } from './utils/notificationAudio';
 import { LineupRealtimeContext } from './contexts/LineupRealtimeContext';
+import { NotificationsContext } from './contexts/NotificationsContext';
 import AuthPage from './pages/AuthPage';
 import JoinChurchPage from './pages/JoinChurchPage';
 import SettingsPage from './pages/SettingsPage';
@@ -128,8 +129,7 @@ export default function App() {
     dismissBannerNotification: dismissLineupBannerNotification,
     handleLineupChange,
     receivePushNotification,
-    soundEnabled: lineupNotificationSoundEnabled,
-    setSoundEnabled: setLineupNotificationSoundEnabled,
+    dispatchLocalNotification,
   } = useLineupNotifications();
 
   useEffect(() => {
@@ -693,8 +693,6 @@ export default function App() {
           onMarkNotificationsRead={markLineupNotificationsRead}
           onMarkNotificationRead={markSingleLineupNotificationRead}
           onClearNotification={clearLineupNotification}
-          notificationSoundEnabled={lineupNotificationSoundEnabled}
-          onNotificationSoundEnabledChange={setLineupNotificationSoundEnabled}
         />
       )}
       {showAppChrome && <InstallBanner />}
@@ -721,6 +719,7 @@ export default function App() {
       
       <div className="mx-auto w-full max-w-7xl min-w-0">
         <LineupRealtimeContext.Provider value={handleLineupChange}>
+          <NotificationsContext.Provider value={dispatchLocalNotification}>
           <Routes>
             <Route path="/" element={<Dashboard onShareApp={() => setShareQrOpen(true)} session={session} churchId={churchId} />} />
             <Route path="/songs" element={<SongLibrary />} />
@@ -738,6 +737,7 @@ export default function App() {
             <Route path="/settings" element={<SettingsPage session={session} churchId={churchId} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </NotificationsContext.Provider>
         </LineupRealtimeContext.Provider>
       </div>
 

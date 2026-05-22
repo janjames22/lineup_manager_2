@@ -6,6 +6,7 @@ import { KEYS, SECTION_TYPES } from '../utils/constants';
 import { getSongById, normalizeLyricsMonitor, saveSong } from '../utils/storage';
 import { useOffline } from '../hooks/useOffline';
 import { useToast } from '../hooks/useToast';
+import { useDispatchLocalNotification } from '../contexts/NotificationsContext';
 
 const DEFAULT_LYRICS_MONITOR_THEME = 'Dark Void';
 const SAFE_KEYS = Array.isArray(KEYS) && KEYS.length ? KEYS : ['C'];
@@ -121,6 +122,7 @@ export default function SongForm() {
   const [saveStatus, setSaveStatus] = useState('idle');
   const isOffline = useOffline();
   const { showToast } = useToast();
+  const dispatchLocalNotification = useDispatchLocalNotification();
   const hasUnsavedChanges = !loading && buildSongSnapshot(song) !== baselineSnapshot;
   const lyricsSections = normalizeLyricsMonitor(song.lyricsMonitor);
 
@@ -275,6 +277,13 @@ export default function SongForm() {
       setBaselineSnapshot(buildSongSnapshot(normalizedSavedSong));
       setSaveStatus('saved');
       showToast(`Song "${song.title}" saved successfully!`, 'success');
+      dispatchLocalNotification?.({
+        type: id ? 'song_updated' : 'song_created',
+        title: `${id ? 'Song updated' : 'New song added'}: ${song.title}`,
+        songId: normalizedSavedSong.id,
+        url: `/songs/${normalizedSavedSong.id}`,
+        id: `local-song-${normalizedSavedSong.id}-${Date.now()}`,
+      });
       if (!id && normalizedSavedSong.id) navigate(`/songs/${normalizedSavedSong.id}/edit`, { replace: true });
     } catch (error) {
       console.error("Failed to save song:", error);
