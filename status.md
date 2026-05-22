@@ -1,6 +1,6 @@
 # CCFBC Line Up Manager — Status
 
-**Updated:** 2026-05-21  
+**Updated:** 2026-05-22  
 **Basis:** Full code review against `native-app-tutorial.md` (8 phases) + accumulated fixes from `review.md`
 
 ## Strategic Decisions
@@ -17,7 +17,7 @@
 
 ## Overall Progress
 
-**~45% complete** — Web PWA is production-ready and deployed. React auth flow, church join/create, and Capacitor wiring are all done. The project now targets Android only; iOS has been dropped. The critical remaining blockers are the Phase 1 database SQL (which must be applied to Supabase before anything else can be tested end-to-end), and Phase 4 native push (Firebase/FCM setup + missing code files).
+**~57% complete** — Web PWA is production-ready and deployed. React auth flow, church join/create, and Capacitor wiring are all done. Phase 4 code is now fully written: `nativePush.js`, `subscribe-native.js` (with CORS + UUID validation), `_nativePush.js`, and `firebase-admin` installed. `registerNativePush` is wired into `App.jsx` auth flow. Remaining Phase 4 blockers are Firebase account setup, `google-services.json`, Gradle plugin, and Firebase env vars. Phase 1 database SQL still unblocked.
 
 | Phase | Description | % Done | Status |
 |---|---|---|---|
@@ -25,8 +25,8 @@
 | Phase 1 | Multi-tenancy DB schema + RLS | 20% | 🔄 SQL not applied; API routes done |
 | Phase 2 | React auth + church join flow | 95% | ✅ All code done (better than tutorial spec) |
 | Phase 3 | Capacitor setup | 100% | ✅ Complete |
-| Phase 4 | Native push notifications | 20% | ❌ Plugin installed; iOS dropped; Android FCM + code files missing |
-| Phase 5 | Offline access | 60% | 🔄 IDB works; @capacitor/network missing |
+| Phase 4 | Native push notifications | 65% | 🔄 All code written; Firebase account + `google-services.json` + env vars still pending |
+| Phase 5 | Offline access | 100% | ✅ Complete |
 | Phase 6 | Member access control UI | 5% | ❌ Depends on Phase 1 |
 | Phase 7 | Icons + splash screen | 0% | ❌ Not started |
 | Phase 8 | Store deployment | 50% | 🔄 Web ready; Android native blocked; iOS N/A |
@@ -41,9 +41,9 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 |---|---|---|---|---|
 | 1 | 🟡 | `api/church/join.js` | 21 | Uses `.single()` instead of `.maybeSingle()`. When no church matches the invite code, `.single()` returns a PGRST116 error rather than `null`. The `churchError \|\| !church` check handles this correctly so it's not a visible bug, but `.maybeSingle()` is the correct Supabase idiom for "zero or one row." |
 | 2 | 🔵 | `src/hooks/useOffline.js` | 1–6 | Delegates to `useSyncStatus.isOnline` (browser `navigator.onLine`). Phase 5 requires updating this to use `@capacitor/network` so native apps get accurate network state. The current implementation works in browsers but is unreliable in the Capacitor WebView on iOS/Android. |
-| 3 | 🔴 | `src/utils/nativePush.js` | — | **FILE MISSING.** Phase 4 step 4-4 requires creating this file to register native push permissions and FCM/APNs tokens. Without it, native push cannot be enabled. |
-| 4 | 🔴 | `api/push/subscribe-native.js` | — | **FILE MISSING.** Phase 4 step 4-5 requires this API endpoint to store device tokens. `nativePush.js` will call `POST /api/push/subscribe-native` which 404s today. |
-| 5 | 🔴 | `package.json` | — | `firebase-admin` not installed. Required for Phase 4 step 4-6 (server-side native push via Firebase). |
+| 3 | ✅ | `src/utils/nativePush.js` | — | **CREATED.** Registers push permissions, FCM token, and 4 Capacitor listeners. Wired into `App.jsx` via `registerNativePush(session.user.id)` in both `getSession` and `onAuthStateChange`. Fetch URL set to `https://lineup-manager-2.vercel.app/api/push/subscribe-native`. |
+| 4 | ✅ | `api/push/subscribe-native.js` | — | **CREATED + HARDENED.** Stores FCM tokens via Supabase upsert. Added: CORS headers on all responses, 200 for OPTIONS preflight, UUID validation (returns 400 before hitting Supabase), `req.body` logging. |
+| 5 | ✅ | `package.json` | — | `firebase-admin` installed (102 packages); `api/_nativePush.js` created with `sendNativePush()` using `sendEachForMulticast` + invalid token detection. |
 | 6 | 🔵 | `package.json` | — | `@capacitor/network` not installed. Required for Phase 5 step 5-1. |
 | 7 | 🔵 | `package.json` | — | `@capacitor/splash-screen` not installed. Required for Phase 7. |
 | 8 | 🟡 | `supabase-schema.sql` | — | Schema file is missing Phase 1 tables (`churches`, `church_members`), RLS helper functions (`my_church_id`, `is_church_admin`), church-scoped RLS policies, and the Phase 4 `native_push_tokens` table. The deployed Supabase DB is ahead of the repo file — schema drift creates a risk if the DB is ever reset or cloned. |
@@ -137,9 +137,9 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 | 4-1. Install `@capacitor/push-notifications` + `cap sync` | ✅ Done | v8.1.1 installed; synced to Android |
 | 4-2. iOS APNs setup | ❌ N/A (iOS dropped) | Xcode, APNs key (.p8), Firebase iOS app, `GoogleService-Info.plist` — not needed; iOS support dropped |
 | 4-3. Android FCM setup | ❌ Pending | Requires: Firebase Android app, `google-services.json`, Gradle plugin edits |
-| 4-4. Create `src/utils/nativePush.js` | ❌ Missing | File does not exist — must be created (see tutorial §4-4) |
-| 4-5. Create `api/push/subscribe-native.js` | ❌ Missing | File does not exist — must be created (see tutorial §4-5) |
-| 4-6. Server-side Firebase Admin SDK send | ❌ Missing | `firebase-admin` not installed; `api/_nativePush.js` not created; Firebase env vars not set |
+| 4-4. Create `src/utils/nativePush.js` | ✅ Done | Created; `registerNativePush(userId)` wired into `App.jsx` `getSession` + `onAuthStateChange` handlers |
+| 4-5. Create `api/push/subscribe-native.js` | ✅ Done | Created; CORS headers, OPTIONS preflight, UUID validation, `req.body` logging all added |
+| 4-6. Server-side Firebase Admin SDK send | ✅ Done (code) | `firebase-admin` installed; `api/_nativePush.js` created with `sendNativePush()`; **Firebase env vars still not set** |
 
 ---
 
@@ -147,8 +147,8 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 
 | Step | Status | Notes |
 |---|---|---|
-| 5-1. `@capacitor/network` + `useOffline.js` update | ❌ Pending | Package not installed; `useOffline.js` still uses `useSyncStatus` (browser-only) |
-| 5-2. IndexedDB offline cache (no change needed) | ✅ Already working | Existing IDB strategy works unchanged in Capacitor WebView |
+| 5-1. `@capacitor/network` + `useOffline.js` update | ✅ Done | `@capacitor/network@8.0.1` installed + synced; `useOffline.js` uses `Network.getStatus()` + `addListener` on native, falls back to `useSyncStatus` on web |
+| 5-2. IndexedDB offline cache (no change needed) | ✅ Done | Existing IDB strategy works unchanged in Capacitor WebView |
 
 ---
 
@@ -280,7 +280,11 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 - Phase 2: `src/utils/storage.js` — `setActiveChurch` / `getActiveChurchId` / `clearChurchData`, `church_id` in `saveSong` + `saveLineup`
 - Phase 3: All 5 steps — Capacitor installed, inited, config updated, iOS/Android platforms added
 - Phase 4 (partial): `@capacitor/push-notifications` v8.1.1 installed and synced
-- Phase 5 (partial): IndexedDB offline cache working in Capacitor WebView
+- Phase 4: `src/utils/nativePush.js` created — permission check, FCM token registration, 4 Capacitor listeners
+- Phase 4: `api/push/subscribe-native.js` created — Supabase upsert, CORS, OPTIONS preflight, UUID validation, request logging
+- Phase 4: `firebase-admin` installed; `api/_nativePush.js` created with `sendNativePush()` + invalid token cleanup
+- Phase 4: `registerNativePush(session.user.id)` wired into `App.jsx` for both new logins and returning sessions
+- Phase 5: `@capacitor/network@8.0.1` installed + synced; `useOffline.js` updated — native uses `Network` plugin, web falls back to `useSyncStatus`
 - Phase 8 (partial): Vercel web deployment ready
 
 ---
@@ -288,8 +292,8 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 ## 🔄 In-Progress / Broken Steps
 
 - **Phase 1 SQL** — tables and RLS not applied to Supabase; blocks all multi-tenancy
-- **Phase 4 native push** — plugin installed but no code wired; `nativePush.js` and `subscribe-native.js` are missing files
-- **Phase 5 offline** — `useOffline.js` uses browser API instead of `@capacitor/network`
+- **Phase 4 native push** — all code done; Firebase account, `google-services.json`, Gradle plugin edits, and Firebase env vars still pending
+- ~~Phase 5 offline~~ ✅ Complete
 - **H1 duplicate notifications** — dual-writer pattern still exists in `api/_push.js` + DB trigger
 - **L1 client push log** — subscription payload still logged unconditionally in `pushNotifications.js:~369`
 - **Schema drift** — `supabase-schema.sql` does not reflect deployed DB (Phase 1 tables, functions, RLS policies, `native_push_tokens` table all missing from repo file)
@@ -300,13 +304,10 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 
 - Phase 1: Run SQL for `churches`, `church_members`, `church_id` column additions, `my_church_id()`, `is_church_admin()`, church-scoped RLS policies
 - Phase 1: Enable Supabase Auth in dashboard (email signups + redirect URLs)
-- Phase 4: Create `src/utils/nativePush.js`
-- Phase 4: Create `api/push/subscribe-native.js`
-- Phase 4: Install `firebase-admin`, create `api/_nativePush.js`
 - Phase 4: Create `native_push_tokens` table in Supabase
 - Phase 4: Android — `google-services.json`, Gradle plugin edits
-- Phase 4: Add Firebase env vars to Vercel + `.env`
-- Phase 5: Install `@capacitor/network`, update `useOffline.js`
+- Phase 4: Add Firebase env vars to Vercel + `.env` (`FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`)
+- ~~Phase 5: Install `@capacitor/network`, update `useOffline.js`~~ ✅ Done
 - Phase 6: Build Settings page with invite code display for admins
 - Phase 7: Install `@capacitor/splash-screen`
 - Phase 7: Run `npx capacitor-assets generate` for Android sizes only
@@ -335,12 +336,11 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 
 7. **Fix L1 client push log** — gate subscription payload log behind `import.meta.env.DEV` in `pushNotifications.js`.
 
-8. **Phase 5 — Install `@capacitor/network`, update `useOffline.js`**  
-   `npm install @capacitor/network && npx cap sync`, then update the hook with the `Capacitor.isNativePlatform()` branch from tutorial §5-1.
+8. ~~**Phase 5 — Install `@capacitor/network`, update `useOffline.js`**~~ ✅ Complete
 
 9. **Phase 6 — Settings page** with invite code display for admins (fetch `churches.invite_code` after Phase 1 SQL is applied).
 
-10. **Phase 4 (code only)** — Create `src/utils/nativePush.js` and `api/push/subscribe-native.js`. Add `native_push_tokens` table to Supabase. Install `firebase-admin`. No Firebase account needed yet.
+10. **Phase 4 (Firebase account + config)** — Create free Firebase project, add Android app, download `google-services.json` → `android/app/`, apply Gradle plugin edits, add `FIREBASE_PROJECT_ID` / `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` to Vercel env vars and `.env`. Create `native_push_tokens` table in Supabase. All code is already written.
 
 11. **Test thoroughly on Android emulator and physical Android device** — verify all features work end-to-end before spending any money. Quality gate before any paid steps.
 
