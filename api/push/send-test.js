@@ -19,7 +19,7 @@ export default async function handler(request, response) {
 
   // When no specific device is targeted, this broadcasts to all subscribers —
   // require admin auth to prevent notification spam from anonymous callers.
-  if (!targetEndpoint && requireAdminToken(request, response)) return;
+  if (!targetEndpoint && await requireAdminToken(request, response)) return;
   const payload = createPushPayload({
     type: 'test',
     title: body.title || 'CCFBC Line Up Test',

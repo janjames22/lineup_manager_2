@@ -232,12 +232,12 @@ CREATE TABLE IF NOT EXISTS public.native_push_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     church_id UUID REFERENCES public.churches(id) ON DELETE SET NULL,
-    token TEXT NOT NULL,
+    fcm_token TEXT NOT NULL,
     platform TEXT NOT NULL CHECK (platform IN ('ios', 'android')),
     is_active BOOLEAN DEFAULT TRUE,
-    last_seen_at TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE (user_id, platform)
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (fcm_token)
 );
 
 ALTER TABLE public.native_push_tokens ENABLE ROW LEVEL SECURITY;

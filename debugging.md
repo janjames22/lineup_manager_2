@@ -1,185 +1,111 @@
-# Debugging Report
-_Last updated: 2026-05-19_
+# CCFBC Line Up Manager — Debugging Report
+**Updated:** 2026-05-25
+**Basis:** Full code audit of all config, API, frontend, and Android files
 
 ## Summary
-I audited the React app, serverless API routes, Supabase schema, environment configuration, build tooling, native Capacitor files, and project status documents. The current app code has the recommended `/api/church/create` server endpoint and `JoinChurchPage` now calls it, so the original direct browser insert bug is fixed in source. The largest remaining risks are database/schema drift, incomplete church scoping across reads/realtime/cache/push, and a broken lint setup. I found 5 critical issues, 9 high-priority issues, and 11 lower-priority warnings. `npm test` passes, `npx vite build` passes, `npm run lint` fails.
 
-## 🔴 Critical Issues
-### Repository Schema Does Not Contain Required Church Tables
-- **File:** `supabase-schema.sql` (lines 11, 31, 455-459); `native-app-tutorial.md` (lines 68-105, 123-148, 156-219); `status.md` (lines 27-33)
-- **Problem:** The canonical repo schema creates `songs`, `lineups`, and push tables, but does not create `churches`, `church_members`, `church_id` columns, `my_church_id()`, `is_church_admin()`, or church-scoped RLS policies. The app now depends on those objects in `src/App.jsx`, `src/pages/Dashboard.jsx`, `api/church/create.js`, and `api/church/join.js`.
-- **Impact:** A fresh Supabase database created from `supabase-schema.sql` cannot support login-to-church onboarding. The deployed DB appears to have at least a `churches` table because the user saw a `churches` RLS error, but that state cannot be reproduced safely from the repo.
-- **Fix:** Move Phase 1 SQL from `native-app-tutorial.md` into `supabase-schema.sql`: create `public.churches`, `public.church_members`, add `church_id` to `songs`, `lineups`, `push_subscriptions`, and `lineup_notifications`, add indexes, add helper functions, enable RLS, and create authenticated church-scoped policies. Then run the reconciled migration in Supabase SQL Editor.
+The audit found **18 issues** across all severity levels: 1 critical (data integrity), 4 high (security/data), 7 medium (bugs affecting specific scenarios), and 6 low (code quality). The most urgent problems are: `getSongs`/`getLineups` have no `church_id` filter so they return all churches' data after the Phase 1 migration; `subscribe-native.js` uses `fcm_token` as the upsert conflict column but the schema defines `UNIQUE (user_id, platform)` with the column named `token`, causing all FCM token saves to fail; and `VITE_PUSH_ADMIN_TOKEN` is exposed in the frontend bundle, making the admin push token publicly readable.
 
-### Songs And Lineups Are Still Publicly Writable
-- **File:** `supabase-schema.sql` (lines 466-483, 491-506)
-- **Problem:** RLS is enabled, but policies use `USING (true)` and `WITH CHECK (true)` for public read, insert, update, and delete on both `songs` and `lineups`.
-- **Impact:** Anyone with the anon key embedded in the frontend can read, create, update, or delete all songs and lineups. This defeats admin/member separation and church isolation.
-- **Fix:** Drop the public policies and replace them with authenticated policies scoped by `church_id = public.my_church_id()`, with writes requiring `public.is_church_admin(church_id)`.
+---
 
-### Frontend Data Access Is Not Church-Scoped
-- **File:** `src/utils/storage.js` (lines 451, 501, 530-531, 581, 615, 659, 693-694, 765); `src/hooks/useRealtimeItems.js` (lines 129-134); `src/lib/offlineStorage.js` (lines 3-10, 63-82)
-- **Problem:** Writes attach `church_id` when `getActiveChurchId()` is set, but reads, detail fetches, deletes, realtime subscriptions, live caches, and offline stores are not filtered or namespaced by church.
-- **Impact:** If public policies remain, users can see and mutate all church data. Even after RLS is fixed, local caches/offline records can leak prior church data after account switches or logout. Realtime currently listens to every row change on a table.
-- **Fix:** Require an active church before loading data. Add `.eq('church_id', getActiveChurchId())` to list/detail queries and deletes. Add a Realtime filter such as `filter: church_id=eq.${churchId}`. Namespace localStorage/IndexedDB cache keys by `userId:churchId` or clear them on church change/sign out.
+## Issues Found
 
-### Push Notifications Are Not Scoped By Church
-- **File:** `api/_push.js` (lines 695-727, 904-909, 965-971); `api/push/send-lineup.js` (lines 36-57); `src/utils/pushNotifications.js` (lines 378-385, 871-883); `native-app-tutorial.md` (lines 101-105)
-- **Problem:** `loadPushSubscriptions()` loads every active subscription unless a specific endpoint is targeted. Subscription save payloads do not include `church_id`, and `send-lineup` does not filter subscribers by the lineup's church.
-- **Impact:** A lineup save can send a notification to every subscribed device across all churches. This is a privacy and trust issue once multiple churches use the app.
-- **Fix:** Add and populate `push_subscriptions.church_id`, pass `churchId` when subscribing, load the lineup including `church_id`, and filter push recipients with `.eq('church_id', lineup.church_id)`.
+### Critical (breaks functionality or exposes data)
 
-### Sign Out Leaves Church Data In Browser Storage
-- **File:** `src/App.jsx` (lines 567-590); `src/utils/storage.js` (lines 12-15); `src/lib/offlineStorage.js` (lines 3-10); `src/utils/lineupNotifications.js` (lines 53, 94)
-- **Problem:** Sign out clears `churchId` and `_activeChurchId`, but it does not clear live caches, offline saved items, localStorage fallback data, notification state, or push device metadata.
-- **Impact:** On a shared browser or after switching accounts, a new user can see old cached songs, lineups, and notifications from the prior church.
-- **Fix:** On sign out, clear church-scoped cache keys and notification keys, or migrate every cache to a `userId:churchId` namespace and switch namespaces when the active church changes.
+| # | File | Line | Issue | Suggested Fix |
+|---|---|---|---|---|
 
-## 🟡 High Priority Issues
-### Create-Church Endpoint Exists But Is Not Atomic
-- **File:** `api/church/create.js` (lines 19-61)
-- **Problem:** The endpoint correctly uses `getSupabaseAdmin()`, verifies the bearer token, inserts `churches`, inserts `church_members` with `role = 'admin'`, and returns `{ church_id }`. However, the two inserts are not wrapped in a database transaction/RPC. If member insert fails and the cleanup delete fails, an orphan church can remain.
-- **Impact:** Partial church records can be created without an admin membership, leaving users stuck at the join screen or creating duplicate slug conflicts later.
-- **Fix:** Create a Postgres RPC such as `create_church_for_user(church_name, slug, display_name, user_id)` that inserts both rows in one transaction, then call it from the service-role endpoint.
+---
 
-### Join-Church Endpoint Ignores Critical Errors
-- **File:** `api/church/join.js` (lines 12, 15, 19-24, 27-32)
-- **Problem:** The route does not check whether `getSupabaseAdmin()` returned `null`, ignores the select error when looking up `invite_code`, and ignores the `upsert` result when adding `church_members`.
-- **Impact:** A missing service-role key can crash the route. Failed membership writes can still return `200`, so the UI thinks the user joined but `loadChurch()` later finds no membership.
-- **Fix:** Mirror the defensive style in `api/church/create.js`: return a clear 500 if admin Supabase is unavailable, check `{ data, error }` for the church lookup, check `{ error }` for the upsert, and return 500/404 as appropriate.
+### High (security / data integrity risk)
 
-### Auth Bootstrap Can Hang Or Hide RLS Failures
-- **File:** `src/App.jsx` (lines 561-584); `src/utils/supabase.js` (lines 6-16)
-- **Problem:** If Supabase env vars are missing, `supabase?.auth.getSession()` never runs and `authLoading` remains true forever. `loadChurch()` also ignores the `error` from `church_members` and has no try/catch.
-- **Impact:** The app can get stuck on `LoadingScreen`, and RLS or network failures are indistinguishable from "user has no church."
-- **Fix:** If `supabase` is `null`, set `authLoading(false)` and show a configuration error. Wrap `getSession()` and `loadChurch()` in try/catch, log/display `church_members` errors, and only treat missing data as no church when the query succeeds.
+| # | File | Line | Issue | Suggested Fix |
+|---|---|---|---|---|
 
-### Frontend Push Calls Do Not Send The Required Admin Token
-- **File:** `api/_push.js` (lines 58-67); `api/push/send-lineup.js` (lines 13-15); `src/utils/pushNotifications.js` (lines 704-714, 871-883); `deployment.md` (lines 73-88)
-- **Problem:** Server routes require `PUSH_ADMIN_TOKEN` for broadcast sends, but browser calls to `/api/push/send-lineup` and all-device test sends do not include an Authorization header. The deployment guide says the app passes the token, but the source does not.
-- **Impact:** With `PUSH_ADMIN_TOKEN` set, lineup saves can succeed while push delivery silently fails with `401 Unauthorized`. If the token is removed to make the frontend work, broadcast routes become abusable.
-- **Fix:** Do not expose `PUSH_ADMIN_TOKEN` to the browser. Instead, authenticate the user bearer token server-side and verify admin membership for the lineup's church before sending push notifications.
+---
 
-### API Routes Do Not Handle CORS Or OPTIONS
-- **File:** `api/_push.js` (lines 112-116); `api/church/create.js` (lines 19-23); `api/church/join.js` (lines 3-4)
-- **Problem:** API handlers only allow their concrete methods and do not respond to `OPTIONS` with CORS headers.
-- **Impact:** Same-origin Vercel web calls work, but Capacitor/native WebViews, alternate domains, previews, or future cross-origin clients can fail preflight requests.
-- **Fix:** Add shared CORS handling: allow `OPTIONS`, set `Access-Control-Allow-Origin` to the approved app origins, and allow `Authorization, Content-Type`.
+### Medium (bugs that affect specific scenarios)
 
-### Full Lint Is Broken
-- **File:** `eslint.config.js` (line 7); `src/components/EmptyState.jsx` (line 3); `src/sw.js` (line 5); `src/components/ShareAppQrModal.jsx` (line 7)
-- **Problem:** `npm run lint` scans generated native web bundles under `android/app/src/main/assets/public` and `ios/App/App/public`. It also finds two source errors and one Fast Refresh warning.
-- **Impact:** CI cannot rely on `npm run lint`, and real source regressions are buried under generated bundle errors. Current result: 334 errors and 1 warning.
-- **Fix:** Ignore `android/**`, `ios/**`, `dist/**`, and `dev-dist/**` in ESLint. Remove unused `cleanupOutdatedCaches`, adjust `EmptyState` so `Icon` is not flagged, and move `APP_SHARE_URL` to a utility module or accept the warning.
+| # | File | Line | Issue | Suggested Fix |
+|---|---|---|---|---|
+| M2 | `api/_nativePush.js` | 57–67 | `loadNativePushTokens()` loads ALL active tokens with no `church_id` filter. In a multi-church deployment, every lineup or song push for one church is delivered to all churches' Android users. | Add a `churchId` parameter to `loadNativePushTokens` and append `.eq('church_id', churchId)` to the query. Pass `churchId` from `send-lineup.js` and `send-song.js` (they already have the lineup/song record which carries `church_id`). |
+| M3 | `api/_push.js` | 695–728 | `loadPushSubscriptions()` has no `church_id` filter — web push also broadcasts across all churches once multiple churches are onboarded. | Add an optional `churchId` parameter and filter with `.eq('church_id', churchId)` when provided. |
+| M4 | `api/push/send-song.js` | 55–62 | The `lineup_notifications` insert happens **before** the push is sent. If the push send throws an error and returns a 500, the notification record is already saved, so the bell icon shows a song event the user never received a push for. | Move the `lineup_notifications` insert to after the push calls succeed, or handle the case gracefully by not surfacing the insert error to the response if the push succeeded. |
+| M5 | `src/utils/nativePush.js` | 51–53 | `pushNotificationActionPerformed` (notification tap) only does `console.log`. When a user taps an FCM notification banner while the app is backgrounded, the app opens but does not navigate to the relevant lineup or song URL. | Import a navigation method (e.g. emit a custom DOM event the React Router can listen to, or use Capacitor `App.addListener('appUrlOpen')` pattern) with `action.notification.data?.url`. |
+| M6 | `api/church/join.js` | 17–22 | The church lookup uses `.single()`. If no church matches the invite code, Supabase JS throws PGRST116 "no rows returned" before the `if (churchError || !church)` check, causing an unhandled exception and an opaque 500 response instead of the intended 404. | Change `.single()` to `.maybeSingle()`. |
+| M7 | `src/pages/Dashboard.jsx` | 23–34 | Two `.single()` calls query `church_members` and `churches`. If there is no membership row yet (race between join and first page load), PGRST116 is thrown and the dashboard silently fails to display the invite code for admins. | Change both `.single()` calls to `.maybeSingle()` and handle the null case. |
 
-### Deployment Documentation Is Out Of Sync With The Schema
-- **File:** `deployment.md` (lines 20-32, 73-88); `supabase-schema.sql` (lines 11, 31, 477-506)
-- **Problem:** The guide says the schema is safe to re-run because tables use `CREATE TABLE IF NOT EXISTS`, but `songs` and `lineups` use plain `CREATE TABLE`. It also says song/lineup writes are restricted to service role, while the schema currently allows public writes.
-- **Impact:** Following the deployment guide can fail on an existing database or give a false sense of security.
-- **Fix:** Update the guide after reconciling `supabase-schema.sql`, and make the schema idempotent for `songs` and `lineups`.
+---
 
-### Vite Dev Server Only Shims Church API Routes
-- **File:** `vite.config.js` (lines 56-60); `src/utils/pushNotifications.js` (line 8)
-- **Problem:** Local Vite middleware handles `/api/church/create` and `/api/church/join`, but no `/api/push/*` or `/api/lineup-notifications/*` routes.
-- **Impact:** Push notification setup and tests fail under `npm run dev` unless using Vercel dev or deployment. This can look like a notification bug when it is a dev-server routing gap.
-- **Fix:** Either document that push testing requires `vercel dev`, or extend the Vite API shim to load all local API routes.
+### Low (code quality, warnings, cleanup)
 
-### Dashboard Invite Code Query Silently Fails
-- **File:** `src/pages/Dashboard.jsx` (lines 20-31)
-- **Problem:** The admin invite-code query ignores Supabase errors and only sets invite code if `created_by === session.user.id`.
-- **Impact:** If RLS denies `churches` reads or the user is an admin through `church_members.role` but not `created_by`, the UI shows no invite code and no error.
-- **Fix:** Check `{ data, error }`, show a clear admin/setup message on error, and determine admin status from `church_members.role = 'admin'`.
+| # | File | Line | Issue | Suggested Fix |
+|---|---|---|---|---|
+| L1 | `supabase-schema.sql` | 467–506 | Wide-open `USING (true)` / `WITH CHECK (true)` policies are defined for `songs` and `lineups`. These are intentionally permissive for the pre-auth version, but Phase 1 migration drops and replaces them. If a developer re-runs `supabase-schema.sql` after the Phase 1 migration, it silently re-opens the policies. | Add a prominent warning comment in `supabase-schema.sql` that these policies are overridden by Phase 1, or guard with `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='songs' AND policyname='songs_select') THEN ...`. |
+| L2 | `api/_push.js` and `supabase-schema.sql` | `_push.js:791`, `schema.sql:621` | **Dual-writer for lineup notifications**: The DB trigger `trigger_create_lineup_notification_on_insert` fires on lineup INSERT and inserts a `lineup_created` record. `createLineupNotificationRecords()` in `_push.js` also inserts after every push. The `ON CONFLICT DO NOTHING` in the trigger and the dupe-check in `createLineupNotificationRecords` prevent duplicate rows, but two attempts happen for every new lineup. | Document this in both files. Consider having `createLineupNotificationRecords` skip the insert when `notificationType === 'lineup_created'` since the DB trigger already covers that case. |
+| L3 | `api/push/subscribe.js` | 41–53 | `console.log('[push subscribe api] received', {...})` runs unconditionally in production. It logs the first 50 chars of the push endpoint, `device_id`, and `platform` to Vercel logs on every subscription attempt. | Replace with `debugPushServer()` / `logPushServer()` which already guard on `IS_PRODUCTION`. |
+| L5 | `android/app/build.gradle` | 20–23 | `minifyEnabled false` in the release build type — no code shrinking, no obfuscation, larger APK. | Set `minifyEnabled true` and add `proguard-rules.pro` entries for Capacitor/Firebase. |
+| L6 | `package.json` | 19 | `@capacitor/network` is at `^8.0.1` while all other `@capacitor/*` packages are `^8.3.4` or `^8.1.1`. | Update `@capacitor/network` to `^8.3.4` for consistency. |
 
-## 🟢 Low Priority / Warnings
-### Native Push Implementation Is Still Incomplete
-- **File:** `status.md` (lines 64-74, 181-187); `native-app-tutorial.md` (lines 641-746); `.env` (lines 1-8)
-- **Problem:** `@capacitor/push-notifications` is installed and configured, but `src/utils/nativePush.js`, `api/push/subscribe-native.js`, Firebase Admin code, and Firebase env vars are missing.
-- **Impact:** Native iOS/Android push will not work yet. Web Push still works independently once API and environment issues are resolved.
-- **Fix:** Complete Phase 4: add Firebase files/env, native subscribe route, native token table, and server-side native send helper.
+---
 
-### Capacitor Offline Network Plugin Is Pending
-- **File:** `status.md` (lines 77-82); `src/hooks/useOffline.js` (lines 1-6); `native-app-tutorial.md` (lines 756-794)
-- **Problem:** Offline detection uses browser `navigator.onLine`; `@capacitor/network` is not installed.
-- **Impact:** Native WebView offline/online transitions may be less reliable than browser/PWA behavior.
-- **Fix:** Install `@capacitor/network` and update `useOffline`/`useSyncStatus` to listen to Capacitor network status when running natively.
+## Verified Working
 
-### Vite Env Values Are Loaded After Version Constants Are Computed
-- **File:** `vite.config.js` (lines 12-17, 103-114)
-- **Problem:** `APP_VERSION` and `BUILD_VERSION` are computed before `applyEnv(mode)` loads `.env` into `process.env`.
-- **Impact:** `VITE_APP_VERSION` or `VITE_SERVICE_WORKER_VERSION` from `.env` may be ignored by Vite config. Current `.env` does not set them, so this is a latent config bug.
-- **Fix:** Move `readVersionInfo()` and version constant computation inside `defineConfig` after `applyEnv(mode)`.
+- **Channel ID consistency (`lineup_updates_v2`)**: Confirmed identical in all 4 locations — `MainActivity.java` line 14, `AndroidManifest.xml` line 31, `api/_nativePush.js` line 22, `src/utils/nativePush.js` line 21. No stale `lineup_updates` references found.
+- **`createChannel()` fields complete**: `nativePush.js` lines 20–29 includes `id`, `name`, `description`, `importance`, `visibility`, `sound`, `vibration`, `lights` — all required Capacitor `Channel` fields present.
+- **`FIREBASE_PRIVATE_KEY` unescaped correctly**: `api/_nativePush.js` line 8 applies `.replace(/\\n/g, '\n')`.
+- **`loadChurch()` uses `.maybeSingle()`**: `App.jsx` line 641 confirmed. Null `churchId` routes correctly to `<JoinChurchPage>` at lines 678–683.
+- **`setActiveChurch()` called on login**: `loadChurch()` calls it at lines 649 (success) and 655 (error fallback). Also called on `onJoined` callback at line 681.
+- **`clearChurchData()` called on logout**: `handleSignOut()` line 662 calls `clearChurchData()` before `supabase.auth.signOut()`.
+- **`registerNativePush(userId)` called after login**: Called in `getSession()` callback (line 592) and in `onAuthStateChange` handler (line 609) when session is truthy.
+- **`deactivateInvalidNativeTokens` called in both send routes**: `send-lineup.js` line 71 and `send-song.js` line 80 both call it with `nativeResult.invalidTokens` when non-empty.
+- **`excludeEndpoint` flows end-to-end**: Read from request body in `send-lineup.js` line 30 and `send-song.js` line 25; passed to `sendPushPayload` in both routes.
+- **`dispatchLocalNotification` called after song save**: `SongForm.jsx` lines 280–286.
+- **`dispatchLocalNotification` called after song delete**: `SongDetail.jsx` lines 63–69.
+- **`sendSongPushNotification` called before delete**: `SongDetail.jsx` line 61 fires it fire-and-forget before `deleteSong`.
+- **`NotificationsContext.Provider` wraps all routes**: `App.jsx` lines 722/740 confirmed.
+- **`addNotification` guard allows song notifications**: `useLineupNotifications.js` line 66 — the guard `if (!notification.lineupId && !notification.songId && !notification.url) return false` correctly passes song notifications that carry a `songId`.
+- **`appId` matches `applicationId`**: Both are `com.ccfbc.lineupmanager` (`capacitor.config.ts` line 4, `android/app/build.gradle` line 6).
+- **SDK versions meet Play requirements**: `variables.gradle` — `compileSdkVersion = 36`, `targetSdkVersion = 36`, `minSdkVersion = 24`. Both compile and target exceed Play's minimum of 34.
+- **Kotlin `resolutionStrategy` block present**: `android/build.gradle` lines 25–32 force stdlib to 1.8.22 — duplicate class fix is in place.
+- **All `@capacitor/*` on major v8**: Confirmed in `package.json`. `@capacitor/push-notifications` at `^8.1.1`, others at `^8.3.4`.
+- **No `@supabase/auth-ui-react`** in `package.json` — no React 19 incompatibility risk from that package.
+- **`google-services.json` exists**: Confirmed at `android/app/google-services.json` (contents not read — may contain secrets).
+- **Supabase client null-safe**: `src/utils/supabase.js` exports `null` when env vars are missing; `App.jsx` checks `if (!supabase)` before calling `getSession`.
+- **`api/church/create.js` and `api/church/join.js` verify Supabase JWT**: Both routes call `supabase.auth.getUser(token)` and return 401 on failure.
+- **`_push.js` `requireAdminToken` returns `false` (not blocks) when `PUSH_ADMIN_TOKEN` env var is missing**: Line 60 — `if (!token) return false`. This means push routes are unprotected if the env var is not set. Acceptable for internal-use apps but worth noting.
 
-### Source Lint Errors Are Small But Real
-- **File:** `src/components/EmptyState.jsx` (line 3); `src/sw.js` (line 5)
-- **Problem:** ESLint flags `Icon` as unused in a destructured default parameter and `cleanupOutdatedCaches` as an unused import.
-- **Impact:** These block lint even after generated native assets are ignored.
-- **Fix:** Destructure `icon` as `IconComponent` inside the function body, and remove the unused `cleanupOutdatedCaches` import.
+---
 
-### Share QR Modal Has A Fast Refresh Warning
-- **File:** `src/components/ShareAppQrModal.jsx` (line 7)
-- **Problem:** The file exports both a component and `APP_SHARE_URL`.
-- **Impact:** Fast Refresh can be less reliable during development.
-- **Fix:** Move `APP_SHARE_URL` to `src/utils/shareUrl.js` and import it into the modal.
+## Recommended Fix Order
 
-### Client Push Logging Still Prints Sensitive Subscription Details
-- **File:** `src/utils/pushNotifications.js` (lines 24-30, 360-369)
-- **Problem:** `logPush()` is unconditional, and line 369 prints the subscription payload including endpoint metadata.
-- **Impact:** Browser console logs can expose semi-sensitive push endpoint/device details.
-- **Fix:** Gate `logPush()` behind `import.meta.env.DEV` or a dedicated debug flag, and never log full endpoints in production.
+1. ~~**H1 — `subscribe-native.js` column mismatch**~~ ✅ Fixed
+2. ~~**C1 — Missing `church_id` filter in `getSongs`/`getLineups`**~~ ✅ Fixed
+3. ~~**M1 — `subscribe-native.js` accepts `userId` from body without JWT check**~~ ✅ Fixed
+4. ~~**H2 — `VITE_PUSH_ADMIN_TOKEN` in client bundle**~~ ✅ Fixed
+5. ~~**M5 — Notification tap does not navigate**~~ ✅ Fixed
+6. ~~**M2/M3 — No `church_id` filter on native token and web push loads**~~ ✅ Fixed
+7. ~~**M6/M7 — `.single()` on possibly-empty queries**~~ ✅ Fixed
+8. ~~**H3/H4 — FCM token logged unguarded, hardcoded URL**~~ ✅ Fixed
 
-### Duplicate Notification Writers Remain
-- **File:** `supabase-schema.sql` (lines 621-656); `api/_push.js` (lines 787-841, 969-971)
-- **Problem:** Both the database trigger and API helper can create `lineup_notifications` records for lineup events.
-- **Impact:** Deduplication is better than before, but the architecture still has two writers that can drift.
-- **Fix:** Choose one writer. Prefer the database trigger for created-lineup records, or remove the trigger and make the API the single source.
+---
 
-### API Routes Have No Rate Limiting
-- **File:** `api/church/create.js` (lines 19-61); `api/church/join.js` (lines 3-32); `api/push/send-test.js` (lines 13-60)
-- **Problem:** Authenticated church creation/join and push routes have no per-user/IP rate limits.
-- **Impact:** Abuse can create slug conflicts, spam invalid invite attempts, or flood notification endpoints if auth checks are weakened.
-- **Fix:** Add rate limiting at Vercel edge/middleware, Supabase audit tables, or a small server-side throttling store.
+## Items That Need Manual Verification
 
-### Native Bundled Web Assets Can Become Stale
-- **File:** `capacitor.config.ts` (line 6); `status.md` (line 60)
-- **Problem:** Capacitor serves from `dist`, but native project assets under `ios/App/App/public` and `android/app/src/main/assets/public` only update after `npx cap sync`.
-- **Impact:** After a web build, native shells can still contain older JS/CSS until sync is run.
-- **Fix:** Always run `npm run build && npx cap sync` before native testing or release. Consider adding a script such as `build:native`.
+- **Whether Phase 1 migration has been run on the live DB**: C1 severity is highest if the Phase 1 church-scoped RLS policies are active. Verify: `SELECT policyname FROM pg_policies WHERE tablename = 'songs';` — if you see `songs_select` the migration ran.
+- **Whether `VITE_PUSH_ADMIN_TOKEN` is set in Vercel**: If it is empty, push send calls succeed without auth (because `requireAdminToken` returns `false` when the env var is unset). If it is set, it is exposed. Either way needs a fix.
+- **Whether `google-services.json` in the repo matches the production Firebase project**: Confirm the `project_id` in the file matches `FIREBASE_PROJECT_ID` in Vercel env vars.
 
-### Production Bundle Is Large
-- **File:** `vite.config.js` (lines 115-181)
-- **Problem:** `npx vite build` warns that the main JS chunk is larger than 500 kB after minification.
-- **Impact:** Initial load can be slower on mobile networks.
-- **Fix:** Code-split route pages with `React.lazy()` and dynamic imports, or raise the warning only after measuring.
+---
 
-### README Still Describes Public/Local-First Assumptions
-- **File:** `README.md` (lines 33, 47)
-- **Problem:** README says the member-facing notification panel does not need login and data is stored in generic `worshipSongs`/`worshipLineups` localStorage keys.
-- **Impact:** Documentation no longer matches the authenticated, multi-church direction of the app.
-- **Fix:** Update README after schema and cache namespacing are finalized.
+## ✅ Fixed in This Session (2026-05-25)
 
-## ✅ What Is Working Correctly
-- `api/church/create.js` exists and uses `getSupabaseAdmin()` from `api/_push.js`.
-- `api/church/create.js` only accepts `POST`, requires `Authorization: Bearer <token>`, verifies the token with `supabase.auth.getUser(token)`, inserts `churches`, inserts `church_members` with `role = 'admin'`, and returns `{ church_id }`.
-- `src/pages/JoinChurchPage.jsx` calls `/api/church/create` with `session.access_token` and no longer directly inserts `churches` from the browser.
-- `src/App.jsx` calls `setActiveChurch(id)` in the `onJoined` callback after `setChurchId(id)`.
-- App routes are protected by the top-level auth/church gates in `src/App.jsx`; unauthenticated users see `AuthPage`, authenticated users without a church see `JoinChurchPage`.
-- `src/utils/supabase.js` keeps service-role credentials out of the frontend and only exposes Vite public env vars.
-- `.gitignore` ignores `.env`.
-- `npm test` passes: 1 test file, 20 tests.
-- `npx vite build` passes: 1681 modules transformed and the service worker builds.
-- A local Vite dev server started successfully with elevated local-network permission; `/` returned HTTP 200.
-- Local `/api/church/create` dev probes returned expected JSON errors: `401 Not authenticated` with no bearer token and `401 Invalid token` with a fake token.
-- Supabase storage calls use `AbortController` timeouts in `withTimeout()`.
-- Push subscription, notification history, and delivery log tables have RLS enabled with no public policies in the repo schema.
-
-## 🔧 Recommended Next Actions (in order)
-1. Reconcile `supabase-schema.sql` with Phase 1 multi-tenancy: church tables, `church_id` columns, helper functions, indexes, and church-scoped RLS.
-2. Apply the reconciled SQL in Supabase, then test: sign up, confirm email, log in, create church, reload, and verify `church_members` contains the admin row.
-3. Add church filters to all song/lineup reads, detail fetches, deletes, realtime subscriptions, live caches, and offline storage.
-4. Clear or namespace all local data on sign out and church changes.
-5. Scope push subscriptions and push sends by `church_id`; replace static browser-inaccessible `PUSH_ADMIN_TOKEN` flow with server-side user/admin authorization.
-6. Harden `api/church/join.js` and `api/church/create.js` with full error handling and a transactional RPC for create.
-7. Fix ESLint ignores and the two source lint errors, then make `npm run lint` green.
-8. Update `deployment.md`, `README.md`, and `status.md` so they match the actual schema, auth model, and create-church endpoint.
-9. Decide whether local push testing should use `vercel dev` or extend the Vite API shim for all API routes.
-10. Complete native push and Capacitor network phases only after the web/auth/RLS foundation is stable.
+| # | File(s) | What was done |
+|---|---|---|
+| M1, H3, H4, L4 | `api/push/subscribe-native.js`, `src/utils/nativePush.js`, `src/App.jsx` | JWT verification added to `subscribe-native.js` — bearer token extracted from `Authorization` header, verified via `supabase.auth.getUser()`, `user.id` from JWT used directly (no `userId` body param or comparison needed). FCM token log gated behind `import.meta.env.DEV` + truncated. Hardcoded Vercel URL replaced with `/api/push/subscribe-native`. `subscribe-native.js` prod console.log gated behind `NODE_ENV !== 'production'`. `registerNativePush` signature changed to accept `accessToken`; `App.jsx` passes `session.access_token` at both call sites. |
+| H2 | `src/utils/pushNotifications.js`, `api/_push.js`, `api/push/send-lineup.js`, `api/push/send-song.js`, `api/push/send-test.js`, `.env` | Removed `VITE_PUSH_ADMIN_TOKEN` from frontend entirely — const deleted, `.env` line removed. Added `import { supabase }` + `getAuthHeader()` helper that reads `supabase.auth.getSession()` and returns a Bearer header. Both send functions now call `await getAuthHeader()`. Server-side `requireAdminToken` made async and extended to accept a valid Supabase JWT (via `supabaseAdmin.auth.getUser()`) as an alternative to the static admin token. All three call sites updated to `await requireAdminToken(...)`. |
+| M5 | `src/utils/nativePush.js`, `src/App.jsx` | `pushNotificationActionPerformed` now dispatches a `CustomEvent('nativePushNavigate', { detail: { url } })` on `window` when `action.notification.data?.url` is present. App.jsx adds a `useEffect` that listens for the event and calls `navigate(path)` using the same `new URL()` + origin-check guard pattern as the existing service worker message handler. |
+| M2, M3 | `api/_nativePush.js`, `api/_push.js`, `api/push/send-lineup.js`, `api/push/send-song.js`, `src/utils/pushNotifications.js` | `loadNativePushTokens` and `loadPushSubscriptions` both accept optional `churchId` param and append `.eq('church_id', churchId)` when provided (no-op when null — preserves single-church behavior). `sendPushPayload` threads `churchId` through to `loadPushSubscriptions`. `send-lineup.js` passes `lineup.church_id` to both. `send-song.js` reads `churchId` from request body and passes it to both. `sendSongPushNotification` in frontend adds `churchId: song.churchId` to the POST body. Fallback query in `loadPushSubscriptions` intentionally omits the filter (column may not exist on old schemas). |
+| M6, M7 | `api/church/join.js`, `src/pages/Dashboard.jsx` | `.single()` → `.maybeSingle()` on church lookup in `join.js` (null handled by existing `!church` guard) and on both `church_members` + `churches` queries in Dashboard (null handled by existing `member?.role` and `church?.invite_code` optional chains — no new guards needed). |
+| C1 | `src/utils/storage.js` | 465, 515, 642, 686 | Added `.eq('church_id', getActiveChurchId())` to all 4 read paths: `getSongs()`, `getSongById()`, `getLineups()`, `getLineupById()`. Original audit only cited 2; full search found 4 unfiltered reads. Writes and deletes were already safe (writes carry `church_id` in payload; deletes scope by PK with RLS enforcement). |
+| H1 | `api/push/subscribe-native.js`, `api/_nativePush.js`, `phase1-migration.sql` | **Live DB uses `UNIQUE (fcm_token)` as the only constraint** — audit was wrong on two counts: (1) column is `fcm_token` not `token`, (2) unique constraint is on `fcm_token` alone, not `(user_id, platform)`. Original `onConflict: 'fcm_token'` was correct and restored. `phase1-migration.sql` updated to match live reality: `fcm_token` column, `UNIQUE (fcm_token)`, `updated_at` instead of `last_seen_at`. `_nativePush.js` simplified to use `fcm_token` directly with no fallback. |

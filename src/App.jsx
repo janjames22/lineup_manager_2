@@ -318,6 +318,20 @@ export default function App() {
   }, [markSingleLineupNotificationRead, navigate, receivePushNotification, showToast]);
 
   useEffect(() => {
+    const handleNativePushNavigate = (event) => {
+      try {
+        const targetUrl = new URL(event.detail.url || '/lineups', window.location.origin);
+        if (targetUrl.origin !== window.location.origin) return;
+        navigate(`${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`);
+      } catch (error) {
+        console.error('[NativePush] notification tap navigation failed:', error);
+      }
+    };
+    window.addEventListener('nativePushNavigate', handleNativePushNavigate);
+    return () => window.removeEventListener('nativePushNavigate', handleNativePushNavigate);
+  }, [navigate]);
+
+  useEffect(() => {
     if (!lineupBannerNotification) return undefined;
     const timerId = window.setTimeout(() => {
       dismissLineupBannerNotification();
@@ -589,7 +603,7 @@ export default function App() {
       if (session) {
         setSession(session);
         loadChurch(session.user.id);
-        registerNativePush(session.user.id).catch(err => console.warn('[nativePush] getSession register failed:', err));
+        registerNativePush(session.access_token).catch(err => console.warn('[nativePush] getSession register failed:', err));
       } else if (isOfflineRef.current) {
         applyOfflineFallback('getSession null while offline');
       } else {
@@ -606,7 +620,7 @@ export default function App() {
       if (session) {
         setSession(session);
         loadChurch(session.user.id);
-        registerNativePush(session.user.id).catch(err => console.warn('[nativePush] onAuthStateChange register failed:', err));
+        registerNativePush(session.access_token).catch(err => console.warn('[nativePush] onAuthStateChange register failed:', err));
       } else if (event === 'SIGNED_OUT') {
         if (isOfflineRef.current) {
           // Failed token refresh while offline — not a real sign-out, preserve state.

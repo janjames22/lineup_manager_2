@@ -462,7 +462,7 @@ export async function getSongs() {
     debugStorage('Loading songs from Supabase...');
     try {
       const { data, error } = await withTimeout(
-        (signal) => supabase.from('songs').select('*').order('title', { ascending: true }).abortSignal(signal),
+        (signal) => supabase.from('songs').select('*').eq('church_id', getActiveChurchId()).order('title', { ascending: true }).abortSignal(signal),
         'Supabase getSongs'
       );
 
@@ -512,7 +512,7 @@ export async function getSongById(id) {
   if (isSupabaseConfigured() && isValidUUID(id)) {
     try {
       const { data, error } = await withTimeout(
-        (signal) => supabase.from('songs').select('*').eq('id', id).abortSignal(signal).single(),
+        (signal) => supabase.from('songs').select('*').eq('id', id).eq('church_id', getActiveChurchId()).abortSignal(signal).single(),
         'Supabase getSongById'
       );
       
@@ -639,7 +639,7 @@ export async function getLineups() {
   if (isSupabaseConfigured()) {
     try {
       const { data, error } = await withTimeout(
-        (signal) => supabase.from('lineups').select('*').order('date', { ascending: false }).abortSignal(signal),
+        (signal) => supabase.from('lineups').select('*').eq('church_id', getActiveChurchId()).order('date', { ascending: false }).abortSignal(signal),
         'Supabase getLineups'
       );
 
@@ -683,7 +683,7 @@ export async function getLineupById(id) {
   if (isSupabaseConfigured() && isValidUUID(id)) {
     try {
       const { data, error } = await withTimeout(
-        (signal) => supabase.from('lineups').select('*').eq('id', id).abortSignal(signal).single(),
+        (signal) => supabase.from('lineups').select('*').eq('id', id).eq('church_id', getActiveChurchId()).abortSignal(signal).single(),
         'Supabase getLineupById'
       );
       

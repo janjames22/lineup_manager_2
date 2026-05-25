@@ -24,6 +24,11 @@
 
         </activity>
 
+        <!-- Use high-importance channel for all FCM notifications by default -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="lineup_updates_v2" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

@@ -1,7 +1,6 @@
 # CCFBC Line Up Manager — Status
-
-**Updated:** 2026-05-22  
-**Basis:** Full code review against `native-app-tutorial.md` (8 phases) + accumulated fixes from `review.md`
+**Updated:** 2026-05-25  
+**Basis:** Full code review against `native-app-tutorial.md` (8 phases)
 
 ## Strategic Decisions
 
@@ -11,25 +10,77 @@
 
 ---
 
-> **Phase 1 migration ready** — `phase1-migration.sql` has been generated. Paste it into the Supabase SQL Editor in one shot. After it runs without errors, mark steps 1-1 through 1-4 as ✅ Done.
+## Recent Updates (since 2026-05-22)
+
+- **Song notifications** — `api/push/send-song.js` created; `saveSong` now sends FCM + web push on add/update; `SongDetail.jsx` sends push on delete; all three call `dispatchLocalNotification` so the saving device also sees the notification in the bell panel
+- **Notification panel simplified** — removed sound toggle, diagnostic UI, phone push settings; replaced with clean bell icon + dropdown (unread badge, mark-all-read, time-ago, Music icon for song events)
+- **`NotificationsContext.js`** created; `App.jsx` provides `dispatchLocalNotification` via context; `SongForm.jsx` and `SongDetail.jsx` consume it
+- **FCM as primary delivery** — `send-lineup.js` and `send-song.js` both now call native FCM first (via `loadNativePushTokens` + `sendNativePush`), web push as fallback for browser users
+- **`_nativePush.js` helpers** — `loadNativePushTokens(supabase)` and `deactivateInvalidNativeTokens(supabase, tokens)` added
+- **Firebase env vars** — `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` now set in `.env`; `VITE_PUSH_ADMIN_TOKEN` also set
+- **`google-services.json`** — now present in `android/app/`; Gradle plugin conditionally applies when file exists (already configured in `android/app/build.gradle`) → Phase 4.3 complete
+- **Notification sound fix (May 25)** — channel renamed to `lineup_updates_v2` in `AndroidManifest.xml`, `api/_nativePush.js`, `src/utils/nativePush.js`; `MainActivity.java` updated with `setSound(RingtoneManager…)` + `AudioAttributes` + `setVibrationPattern`; debug APK built successfully
+- **SettingsPage.jsx** built — shows church name, invite code (admin only, with copy button), member list with role badges; wired into Navbar and BottomNav
+- **`send-song.js` excludeEndpoint bug fixed** — was silently ignoring `excludeEndpoint` from request body
 
 ---
 
 ## Overall Progress
 
-**~57% complete** — Web PWA is production-ready and deployed. React auth flow, church join/create, and Capacitor wiring are all done. Phase 4 code is now fully written: `nativePush.js`, `subscribe-native.js` (with CORS + UUID validation), `_nativePush.js`, and `firebase-admin` installed. `registerNativePush` is wired into `App.jsx` auth flow. Remaining Phase 4 blockers are Firebase account setup, `google-services.json`, Gradle plugin, and Firebase env vars. Phase 1 database SQL still unblocked.
+**~68% complete** — Web PWA is production-ready and deployed. Phase 4 is now functionally complete at the code + config level (Firebase env vars set, `google-services.json` present, Gradle plugin configured, `sendNativePush` integrated into all push routes). Notification sound/banner fixes applied (channel v2). Phase 6 Settings page built. Main remaining blockers: Phase 1 SQL not yet applied to Supabase, `MainActivity.java` channel ID inconsistency (`lineup_updates` vs `lineup_updates_v2`), Phase 7 icons/splash, and end-to-end testing on real device.
 
 | Phase | Description | % Done | Status |
 |---|---|---|---|
-| Phase 0 | Prerequisites (tools, accounts) | 33% | 🔄 Partial — Android Studio pending; Google Play account deferred to end |
-| Phase 1 | Multi-tenancy DB schema + RLS | 20% | 🔄 SQL not applied; API routes done |
+| Phase 0 | Prerequisites (tools, accounts) | 33% | 🔄 Partial — Android Studio status unknown; Google Play account deferred |
+| Phase 1 | Multi-tenancy DB schema + RLS | 20% | 🔄 SQL not confirmed applied; API routes done |
 | Phase 2 | React auth + church join flow | 95% | ✅ All code done (better than tutorial spec) |
 | Phase 3 | Capacitor setup | 100% | ✅ Complete |
-| Phase 4 | Native push notifications | 65% | 🔄 All code written; Firebase account + `google-services.json` + env vars still pending |
+| Phase 4 | Native push notifications | 90% | 🔄 All code + config done; end-to-end device test pending |
 | Phase 5 | Offline access | 100% | ✅ Complete |
-| Phase 6 | Member access control UI | 5% | ❌ Depends on Phase 1 |
+| Phase 6 | Member access control UI | 60% | 🔄 Settings page built; invite code depends on Phase 1 DB |
 | Phase 7 | Icons + splash screen | 0% | ❌ Not started |
-| Phase 8 | Store deployment | 50% | 🔄 Web ready; Android native blocked; iOS N/A |
+| Phase 8 | Store deployment | 50% | 🔄 Web ready; Android native blocked on Phase 4 test + Phase 7 |
+
+---
+
+## Notification Sound Fix — May 25, 2026
+
+### Channel ID renamed: `lineup_updates` → `lineup_updates_v2`
+
+Android locks notification channel settings (sound, vibration) permanently after first creation. Because the `lineup_updates` channel was created without explicit sound settings on first install, Android ignores any `setSound` updates to that channel. The fix is a new channel ID.
+
+| File | Change | Status |
+|---|---|---|
+| `android/app/src/main/AndroidManifest.xml` | `android:value="lineup_updates_v2"` | ✅ Updated |
+| `api/_nativePush.js` | `channelId: 'lineup_updates_v2'` | ✅ Updated |
+| `src/utils/nativePush.js` | `id: 'lineup_updates_v2'` in `createChannel` | ✅ Updated |
+| `android/…/MainActivity.java` | **`CHANNEL_ID = "lineup_updates"`** — still OLD | ❌ NOT updated |
+
+> **Action required:** Update `MainActivity.java` line 11: `static final String CHANNEL_ID = "lineup_updates_v2";`
+> Without this, the Java channel created on app start uses the old ID and Android falls back to it instead of the v2 channel.
+
+### Additional `MainActivity.java` changes (applied)
+- `setSound(RingtoneManager.getDefaultUri(TYPE_NOTIFICATION), audioAttributes)` with `AudioAttributes.USAGE_NOTIFICATION`
+- `setVibrationPattern(new long[]{0, 250, 250, 250})`
+- Added imports: `AudioAttributes`, `RingtoneManager`, `Uri`
+
+### FCM payload changes (applied in `api/_nativePush.js`)
+- `android.priority: 'high'`
+- `android.notification.channelId: 'lineup_updates_v2'`
+- `android.notification.sound: 'default'`
+- `android.notification.defaultSound: true`
+- `android.notification.vibrateTimingsMillis: [0, 250, 250, 250]`
+- `android.notification.defaultVibrateTimings: false`
+
+### Build status
+- ✅ Debug APK built successfully on 2026-05-25
+- ❌ Signed release APK: not yet generated
+
+### What still needs to be done
+1. Fix `MainActivity.java` `CHANNEL_ID` to `"lineup_updates_v2"` (see action above)
+2. Fix `src/utils/nativePush.js` createChannel call — missing required `name` field (see Code Errors #13)
+3. Test on connected Xiaomi M2102J20SG — verify notification sound actually plays
+4. Generate signed release APK in Android Studio (Build → Generate Signed Bundle/APK)
 
 ---
 
@@ -39,46 +90,46 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 
 | # | Severity | File | Line | Issue |
 |---|---|---|---|---|
-| 1 | 🟡 | `api/church/join.js` | 21 | Uses `.single()` instead of `.maybeSingle()`. When no church matches the invite code, `.single()` returns a PGRST116 error rather than `null`. The `churchError \|\| !church` check handles this correctly so it's not a visible bug, but `.maybeSingle()` is the correct Supabase idiom for "zero or one row." |
-| 2 | 🔵 | `src/hooks/useOffline.js` | 1–6 | Delegates to `useSyncStatus.isOnline` (browser `navigator.onLine`). Phase 5 requires updating this to use `@capacitor/network` so native apps get accurate network state. The current implementation works in browsers but is unreliable in the Capacitor WebView on iOS/Android. |
-| 3 | ✅ | `src/utils/nativePush.js` | — | **CREATED.** Registers push permissions, FCM token, and 4 Capacitor listeners. Wired into `App.jsx` via `registerNativePush(session.user.id)` in both `getSession` and `onAuthStateChange`. Fetch URL set to `https://lineup-manager-2.vercel.app/api/push/subscribe-native`. |
-| 4 | ✅ | `api/push/subscribe-native.js` | — | **CREATED + HARDENED.** Stores FCM tokens via Supabase upsert. Added: CORS headers on all responses, 200 for OPTIONS preflight, UUID validation (returns 400 before hitting Supabase), `req.body` logging. |
-| 5 | ✅ | `package.json` | — | `firebase-admin` installed (102 packages); `api/_nativePush.js` created with `sendNativePush()` using `sendEachForMulticast` + invalid token detection. |
-| 6 | 🔵 | `package.json` | — | `@capacitor/network` not installed. Required for Phase 5 step 5-1. |
+| 1 | 🟡 | `api/church/join.js` | 21 | Uses `.single()` instead of `.maybeSingle()`. When no church matches the invite code, `.single()` returns PGRST116 rather than `null`. The error-check handles it but `.maybeSingle()` is the correct idiom. |
+| 2 | ✅ | `src/hooks/useOffline.js` | — | **FIXED.** Now uses `@capacitor/network` `Network.getStatus()` + `addListener` on native, falls back to `useSyncStatus` on web. |
+| 3 | ✅ | `src/utils/nativePush.js` | — | Created and functional. |
+| 4 | ✅ | `api/push/subscribe-native.js` | — | Created with CORS headers, OPTIONS preflight, UUID validation. |
+| 5 | ✅ | `firebase-admin` + `api/_nativePush.js` | — | Installed; `sendNativePush()` functional with `sendEachForMulticast` + invalid token cleanup. |
+| 6 | ✅ | `package.json` | — | `@capacitor/network@8.0.1` installed. |
 | 7 | 🔵 | `package.json` | — | `@capacitor/splash-screen` not installed. Required for Phase 7. |
-| 8 | 🟡 | `supabase-schema.sql` | — | Schema file is missing Phase 1 tables (`churches`, `church_members`), RLS helper functions (`my_church_id`, `is_church_admin`), church-scoped RLS policies, and the Phase 4 `native_push_tokens` table. The deployed Supabase DB is ahead of the repo file — schema drift creates a risk if the DB is ever reset or cloned. |
-| 9 | 🟡 | `storage.js` — `getSongs`, `getSongById`, `getLineups` | 459, 509 | Supabase queries fetch all rows without a `church_id` filter. This is intentional (RLS will enforce isolation once Phase 1 SQL is applied), but until it is, all authenticated users see all churches' data. |
-| 10 | 🟡 | `api/push/send-lineup.js`, `api/push/send-test.js` | — | Push is sent to all active subscribers globally, not scoped to a church. After Phase 1 is applied, these need a `church_id` filter on the `push_subscriptions` query. |
-| 11 | 🟡 | `src/utils/pushNotifications.js` | ~369 | Full subscription payload (contains endpoint URL) logged unconditionally in the client. Should be gated behind a `DEBUG` flag or removed. |
-| 12 | 🟡 | `api/_push.js` — `createLineupNotificationRecords()` | — | Dual-writer pattern: both the DB trigger and this API function write to `lineup_notifications`. Only `type='lineup_created'` has a unique index to dedupe. Other event types can produce unbounded duplicate rows. Fix: remove the API-side insert and let the DB trigger be the single writer. |
+| 8 | 🟡 | `supabase-schema.sql` | — | Schema file still missing Phase 1 tables (`churches`, `church_members`), RLS functions, church-scoped policies, and `native_push_tokens`. Deployed DB is ahead of repo file — schema drift risk if DB is reset or cloned. |
+| 9 | 🟡 | `storage.js` — `getSongs`, `getSongById`, `getLineups` | — | Supabase queries fetch all rows without a `church_id` filter. Intentional until Phase 1 RLS is applied; after that, RLS enforces isolation automatically. |
+| 10 | 🟡 | `api/push/send-lineup.js`, `api/push/send-song.js` | — | Push sent to all active subscribers globally, not scoped to a church. After Phase 1, these need a `church_id` filter on `push_subscriptions` and `native_push_tokens` queries. |
+| 11 | 🟡 | `src/utils/pushNotifications.js` | ~369 | Full subscription payload (contains endpoint URL) logged unconditionally. Should be gated behind `IS_DEV` or removed. |
+| 12 | 🟡 | `api/_push.js` — `createLineupNotificationRecords()` | — | Dual-writer pattern: both the DB trigger and this API function write to `lineup_notifications`. Unbounded duplicate rows for non-`lineup_created` event types. Fix: remove API-side insert; rely on DB trigger only. |
+| 13 | 🔴 | `src/utils/nativePush.js` | createChannel | `createChannel` call is missing the required `name` field. Capacitor `Channel` interface requires both `id` and `name`. The call may fail silently or create a channel with an empty visible name. **Fix:** add `name: 'Lineup Updates'` to the object. |
+| 14 | 🔴 | `android/…/MainActivity.java` | 11 | `CHANNEL_ID = "lineup_updates"` — still uses old channel ID. All other files now reference `lineup_updates_v2`. This means the Java channel (created on every app start) has the wrong ID and wrong settings. **Fix:** change to `"lineup_updates_v2"`. |
+| 15 | 🟡 | `api/push/subscribe-native.js` | 42 | Upserts with column `fcm_token` and `onConflict: 'fcm_token'`, but `phase1-migration.sql` creates the column as `token`. If the migration was run as written, all token registrations from this route silently fail (42703 column-not-found). Verify actual column name in Supabase; fix either the migration or the route to match. |
+| 16 | 🟡 | `api/push/subscribe-native.js` | — | No JWT verification — accepts `userId` from request body without validating a session token. Any caller can register any UUID as the userId. Low risk for a church-internal app but should be hardened before Play Store. |
 
-### Improvements vs Tutorial Spec (things coded BETTER than tutorial)
+### Improvements vs Tutorial Spec
 
 | Area | Tutorial Spec | Actual Implementation |
 |---|---|---|
-| `JoinChurchPage.jsx` — create church | Direct `supabase.from('churches').insert()` from browser (would fail RLS) | Calls `POST /api/church/create` (trusted server route) — RLS-safe |
-| `api/church/create.js` | No rollback on member insert failure | Deletes the church row if the membership insert fails — atomic |
+| `JoinChurchPage.jsx` — create church | Direct `supabase.from('churches').insert()` from browser | Calls `POST /api/church/create` (trusted server route) — RLS-safe |
+| `api/church/create.js` | No rollback on member insert failure | Deletes the church row if membership insert fails — atomic |
 | `App.jsx loadChurch()` | Uses `.single()` (throws on empty) | Uses `.maybeSingle()` — returns `null` instead of throwing |
 | `AuthPage.jsx` | `<Auth>` from `@supabase/auth-ui-react` (React 18 dep, crashes React 19) | Custom Tailwind form — no external dep, no crash |
+| Notification delivery | Web push only | Native FCM primary + web push fallback in both `send-lineup.js` and `send-song.js` |
+| Song notifications | Not in tutorial | Full song add/update/delete push + local panel notification |
 
 ---
 
-## Native App Tutorial Progress
+## Phase-by-Phase Detail
 
-### Phase 0a — Free / Local Tools (do early)
+### Phase 0 — Prerequisites
 
 | Item | Status | Notes |
 |---|---|---|
 | Node 18+ | ✅ Done | Node 24.15.0 confirmed |
-| Android Studio | ⏳ Pending | Must be installed manually — do before Phase 4 testing |
-
-### Phase 0b — Paid Accounts (defer to end)
-
-| Item | Status | Notes |
-|---|---|---|
-| Google Play Account ($25) | ⏳ Pending | Purchase ONLY after app is fully tested and quality-verified on a real Android device — the very last step |
-
-> **Dropped (iOS):** Xcode, CocoaPods, Apple Developer Account ($99/yr) — iOS support removed from project scope.
+| Android Studio | ⏳ Pending | Must be installed manually before APK signing |
+| Google Play Account ($25) | ⏳ Deferred | Purchase ONLY after app is fully tested on real Android device — last step |
+| iOS / Xcode / CocoaPods / Apple Developer Account | ❌ N/A | iOS dropped from scope |
 
 ---
 
@@ -86,22 +137,14 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 
 | Step | Status | Notes |
 |---|---|---|
-| 1-1. Enable Supabase Auth in dashboard | 🟢 Ready to Apply | **Dashboard action** — see manual steps below and `phase1-migration.sql` header |
-| 1-2. New DB tables (`churches`, `church_members`, `church_id` columns) | 🟢 Ready to Apply | SQL extracted to `phase1-migration.sql` §1-2 — run in Supabase SQL Editor |
-| 1-3. Helper RLS functions (`my_church_id()`, `is_church_admin()`) | 🟢 Ready to Apply | SQL extracted to `phase1-migration.sql` §1-3 |
-| 1-4. Rewrite RLS policies (church-scoped) | 🟢 Ready to Apply | SQL extracted to `phase1-migration.sql` §1-4 (includes DROP of old wide-open policies) |
-| 1-5. `api/church/join.js` invite-code route | ✅ Done | Implemented with auth check, upsert-on-conflict, and error handling |
-| 1-6. `api/church/create.js` create route | ✅ Done | **Added beyond tutorial** — trusted server route with slug generation, rollback on member insert failure |
+| 1-1. Enable Supabase Auth in dashboard | 🟢 Ready to Apply | Dashboard action: email signups + Site URL + localhost redirect |
+| 1-2. New DB tables (`churches`, `church_members`, `church_id` columns) | 🟢 Ready to Apply | SQL in `phase1-migration.sql` §1-2 |
+| 1-3. Helper RLS functions (`my_church_id()`, `is_church_admin()`) | 🟢 Ready to Apply | SQL in `phase1-migration.sql` §1-3 |
+| 1-4. Rewrite RLS policies (church-scoped) | 🟢 Ready to Apply | SQL in `phase1-migration.sql` §1-4 |
+| 1-5. `api/church/join.js` invite-code route | ✅ Done | Implemented with auth check, upsert-on-conflict, UUID validation |
+| 1-6. `api/church/create.js` create route | ✅ Done | **Added beyond tutorial** — trusted server route, atomic rollback |
 
-**Action required:** Complete the Step 1-1 dashboard steps first (listed below), then paste `phase1-migration.sql` into the Supabase SQL Editor and run it. Steps 1-1 through 1-4 will be marked ✅ Done only after you confirm the script ran without errors.
-
-#### Step 1-1 — Manual Dashboard Steps (do these BEFORE running the SQL)
-
-1. Go to **Authentication → Settings** in your Supabase project dashboard.
-2. Under **Email Auth**: toggle ON **Enable Email Signups**.
-3. Under **Site URL**: set to your Vercel domain (e.g. `https://your-app.vercel.app`).
-4. Under **Redirect URLs → Add URL**: add `http://localhost:5173` (for local dev).
-5. Click **Save**.
+> The app's React code for church membership is fully implemented and ready. Steps 1-1 through 1-4 are marked "Ready to Apply" not "Done" because the SQL application to the live Supabase DB cannot be confirmed from repository files alone.
 
 ---
 
@@ -109,12 +152,12 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 
 | Step | Status | Notes |
 |---|---|---|
-| 2-1. Install auth helpers | ⚠️ Superseded | `@supabase/auth-ui-react` was installed then **uninstalled** — it ships React 18 internally, crashing under React 19. See `bug-report-auth-crash.md`. |
-| 2-2. Update `src/utils/supabase.js` | ✅ Done | Auth options added: `persistSession`, `autoRefreshToken`, `detectSessionInUrl` |
-| 2-3. Create `src/pages/AuthPage.jsx` | ✅ Done | Custom email/password form using `supabase.auth.signInWithPassword` + `signUp` directly — no auth-ui-react dep |
-| 2-4. Create `src/pages/JoinChurchPage.jsx` | ✅ Done | Join-by-invite-code + create-church flows; both call trusted API routes (not direct Supabase) |
-| 2-5. Gate `App.jsx` with auth | ✅ Done | `session`, `churchId`, `authLoading` state + `useEffect` + `loadChurch()` (uses `maybeSingle()`) + 3 early returns |
-| 2-6. Pass `church_id` through storage | ✅ Done | `setActiveChurch` / `getActiveChurchId` in `storage.js`; injected into `saveSong` and `saveLineup`; called from `loadChurch` and on sign-out |
+| 2-1. Install auth helpers | ⚠️ Superseded | `@supabase/auth-ui-react` installed then **uninstalled** — ships React 18 internally, crashes React 19 |
+| 2-2. Update `src/utils/supabase.js` | ✅ Done | `persistSession`, `autoRefreshToken`, `detectSessionInUrl` configured |
+| 2-3. Create `src/pages/AuthPage.jsx` | ✅ Done | Custom email/password form using Supabase auth directly |
+| 2-4. Create `src/pages/JoinChurchPage.jsx` | ✅ Done | Join-by-invite-code + create-church, both via trusted API routes |
+| 2-5. Gate `App.jsx` with auth | ✅ Done | `session`, `churchId`, `authLoading` + `loadChurch()` using `maybeSingle()` + 3 early returns |
+| 2-6. Pass `church_id` through storage | ✅ Done | `setActiveChurch` / `getActiveChurchId` in `storage.js`; injected into `saveSong` + `saveLineup` |
 
 ---
 
@@ -122,11 +165,11 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 
 | Step | Status | Notes |
 |---|---|---|
-| 3-1. Install Capacitor | ✅ Done | `@capacitor/core`, `@capacitor/cli`, `@capacitor/ios`, `@capacitor/android` all installed |
-| 3-2. Init Capacitor | ✅ Done | `npx cap init` run; `capacitor.config.ts` generated |
-| 3-3. Update `capacitor.config.ts` | ✅ Done | `server.androidScheme`, `PushNotifications`, `SplashScreen` plugin config present |
-| 3-4. Add iOS and Android platforms | ✅ Done | `ios/` and `android/` native project folders created |
-| 3-5. Daily dev workflow | 📖 Documented | `npm run build && npx cap sync`, then `npx cap open ios` / `npx cap open android` |
+| 3-1. Install Capacitor | ✅ Done | `@capacitor/core`, `@capacitor/cli`, `@capacitor/android` all present in `package.json` |
+| 3-2. Init Capacitor | ✅ Done | `capacitor.config.ts` present with correct `appId` and `webDir` |
+| 3-3. Update `capacitor.config.ts` | ✅ Done | `server.androidScheme`, `PushNotifications.presentationOptions`, `SplashScreen` config present |
+| 3-4. Add iOS and Android platforms | ✅ Done | `android/` native project folder present |
+| 3-5. Daily dev workflow | 📖 Documented | `npm run build && npx cap sync`, then `npx cap open android` |
 
 ---
 
@@ -134,12 +177,19 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 
 | Step | Status | Notes |
 |---|---|---|
-| 4-1. Install `@capacitor/push-notifications` + `cap sync` | ✅ Done | v8.1.1 installed; synced to Android |
-| 4-2. iOS APNs setup | ❌ N/A (iOS dropped) | Xcode, APNs key (.p8), Firebase iOS app, `GoogleService-Info.plist` — not needed; iOS support dropped |
-| 4-3. Android FCM setup | ❌ Pending | Requires: Firebase Android app, `google-services.json`, Gradle plugin edits |
-| 4-4. Create `src/utils/nativePush.js` | ✅ Done | Created; `registerNativePush(userId)` wired into `App.jsx` `getSession` + `onAuthStateChange` handlers |
-| 4-5. Create `api/push/subscribe-native.js` | ✅ Done | Created; CORS headers, OPTIONS preflight, UUID validation, `req.body` logging all added |
-| 4-6. Server-side Firebase Admin SDK send | ✅ Done (code) | `firebase-admin` installed; `api/_nativePush.js` created with `sendNativePush()`; **Firebase env vars still not set** |
+| 4-1. Install `@capacitor/push-notifications` | ✅ Done | v8.1.1 in `package.json` |
+| 4-2. iOS APNs setup | ❌ N/A | iOS dropped from scope |
+| 4-3. Android FCM setup | ✅ Done | `google-services.json` in `android/app/`; `build.gradle` (project): `classpath 'com.google.gms:google-services:4.4.4'`; `app/build.gradle`: conditionally applies plugin when JSON present |
+| 4-4. `src/utils/nativePush.js` | 🔄 Done (with bug) | `registerNativePush()` + `createChannel` call present; **missing `name` field** in `createChannel` (see Error #13) |
+| 4-5. `api/push/subscribe-native.js` | 🔄 Done (with bug) | CORS, UUID validation, Supabase upsert present; **column name mismatch** `fcm_token` vs `token` (Error #15); no JWT verification (Error #16) |
+| 4-6. Server-side Firebase Admin SDK | ✅ Done | `firebase-admin` installed; `api/_nativePush.js` has `sendNativePush()` + `loadNativePushTokens()` + `deactivateInvalidNativeTokens()`; FCM integrated as primary in both `send-lineup.js` and `send-song.js`; Firebase env vars set in `.env` |
+
+> **Remaining Phase 4 blockers before declaring complete:**
+> - Fix `nativePush.js` `createChannel` missing `name` field (Error #13)
+> - Fix `MainActivity.java` channel ID inconsistency (Error #14)  
+> - Verify Firebase credentials are set in **Vercel** project settings (`.env` local only)
+> - Verify `native_push_tokens` table column name matches `subscribe-native.js` usage (`fcm_token` vs `token`)
+> - End-to-end test: install debug APK → receive FCM push with sound on Xiaomi M2102J20SG
 
 ---
 
@@ -147,8 +197,8 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 
 | Step | Status | Notes |
 |---|---|---|
-| 5-1. `@capacitor/network` + `useOffline.js` update | ✅ Done | `@capacitor/network@8.0.1` installed + synced; `useOffline.js` uses `Network.getStatus()` + `addListener` on native, falls back to `useSyncStatus` on web |
-| 5-2. IndexedDB offline cache (no change needed) | ✅ Done | Existing IDB strategy works unchanged in Capacitor WebView |
+| 5-1. `@capacitor/network` + `useOffline.js` update | ✅ Done | `@capacitor/network@8.0.1` in `package.json`; `useOffline.js` uses `Network.getStatus()` + `addListener` on native, falls back to `useSyncStatus` on web |
+| 5-2. IndexedDB offline cache | ✅ Done | Existing IDB strategy unchanged, works in Capacitor WebView |
 
 ---
 
@@ -156,8 +206,9 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 
 | Item | Status | Notes |
 |---|---|---|
-| Role enforcement (admin vs member) | ❌ Pending | Depends on Phase 1 DB/RLS being applied first |
-| Settings page with invite code display | ❌ Not built | No Settings page exists; `invite_code` is not surfaced to admins |
+| `src/pages/SettingsPage.jsx` | ✅ Done | Built — shows church name, invite code (admin-only) with copy button, member list with role badges; wired into Navbar + BottomNav |
+| Invite code display working end-to-end | ⏳ Blocked | Depends on Phase 1 SQL being applied so `churches.invite_code` column exists |
+| Role enforcement (admin vs member) | ⏳ Blocked | Depends on Phase 1 DB + RLS |
 
 ---
 
@@ -166,7 +217,7 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 | Item | Status | Notes |
 |---|---|---|
 | `@capacitor/splash-screen` install | ❌ Pending | Not in `package.json` |
-| `@capacitor/assets` icon generation (Android only) | ❌ Pending | Requires 1024×1024 source PNG; `public/icon-512.png` exists and can be upscaled — generate Android sizes only; iOS not targeted |
+| `@capacitor/assets` icon generation | ❌ Pending | Source `public/icon-512.png` exists; run Android sizes only (iOS dropped) |
 
 ---
 
@@ -174,9 +225,9 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 
 | Target | Status | Notes |
 |---|---|---|
-| iOS (Xcode → App Store) | ❌ N/A (iOS dropped) | iOS support dropped; project targets Android only |
-| Android (Android Studio → Play Store) | ❌ Pending | Blocked by Phases 4, 7 |
-| Vercel (web) | ✅ Ready | `npm run build` passes cleanly; procedure in `deployment.md` |
+| iOS | ❌ N/A | iOS dropped from scope |
+| Android (Play Store) | ❌ Pending | Blocked by Phase 4 end-to-end test + Phase 7 + signed APK |
+| Vercel (web) | ✅ Ready | `npm run build` passes cleanly; deployed |
 
 ---
 
@@ -186,54 +237,37 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 
 | ID | Finding | Status |
 |---|---|---|
-| C1 | Public RLS on songs/lineups | ✅ Fixed — write policies restored as anon-permissive (intentional until church-scoped RLS from Phase 1 is applied); `church_id` injected into every write |
-| C2 | Unauthenticated push routes | ✅ Fixed — `PUSH_ADMIN_TOKEN` set in `.env` (64 chars); `requireAdminToken` enforced in `send-lineup.js` and `send-test.js` |
+| C1 | Public RLS on songs/lineups | ✅ Fixed — `church_id` injected into every write; RLS will enforce once Phase 1 SQL applied |
+| C2 | Unauthenticated push routes | ✅ Fixed — `PUSH_ADMIN_TOKEN` set (64 chars); `requireAdminToken` enforced; `VITE_PUSH_ADMIN_TOKEN` also set |
 | C3 | Public `push_subscriptions` access | ✅ Fixed in schema — pending SQL application to Supabase |
 
 ### High
 
 | ID | Finding | Status |
 |---|---|---|
-| H1 | Duplicate `lineup_notifications` rows | 🔄 Partially fixed — type normalization improved; dual-writer pattern (DB trigger + API) still exists; unbounded growth risk for non-`lineup_created` event types |
-| H2 | Duplicate legacy API endpoints | ✅ Fixed — `api/push-subscriptions.js` and `api/send-lineup-push.js` deleted |
-| H3 | Cross-channel notification dedup | ✅ Fixed — secondary dedup key `lineupId:eventSlug` in `addNotification`; single Realtime channel via `LineupRealtimeContext` |
+| H1 | Duplicate `lineup_notifications` rows | 🔄 Partial — type normalization improved; dual-writer pattern (DB trigger + API) still exists |
+| H2 | Duplicate legacy API endpoints | ✅ Fixed |
+| H3 | Cross-channel notification dedup | ✅ Fixed |
 
-### Medium
-
-| ID | Finding | Status |
-|---|---|---|
-| M1 | `read()` persisted fallback to localStorage | ✅ Fixed |
-| M2 | Offline by-id lookups skipped live cache | ✅ Fixed |
-| M3 | `withTimeout()` no AbortController | ✅ Fixed — refactored to factory function; all 10 call sites use `.abortSignal(signal)` |
-| M4 | `consumeLocalLineupCreation()` consumed marker on first match | ✅ Fixed — marker kept for full TTL window |
-| M5 | No automated tests | ✅ Fixed — Vitest added; 20 tests across `normalizeLyricsMonitor`, snake↔camelCase conversion, notification construction |
-
-### Low
+### Medium / Low
 
 | ID | Finding | Status |
 |---|---|---|
-| L1 | Verbose push logging in production | 🔄 Partially fixed — server logs gated; client subscription log still unconditional (`pushNotifications.js:~369`) |
-| L2 | Unusual dependency major versions | ✅ Verified — build passes cleanly with Vite 8 / plugin-react 6 |
-| L3 | Redundant Realtime subscriptions | ✅ Fixed — removed duplicate `lineups` channel from `useLineupNotifications`; single channel via `LineupRealtimeContext` |
-| L4 | SW message listener re-bound on notification changes | ✅ Fixed — `lineupNotificationsRef` pattern |
-| L5 | TOCTOU race on save | ✅ Fixed — `saveSong` and `saveLineup` use `upsert({ onConflict: 'id' })` |
-| L6 | `getRequestBody()` swallows malformed JSON | ✅ Fixed — `console.warn` added in catch |
+| M1–M5 | Various storage/offline/dedup fixes | ✅ All fixed |
+| L1 | Client push log unconditional | 🔄 Partial — server logs gated; client subscription log still unconditional (`pushNotifications.js:~369`) |
+| L2–L6 | Dep versions, realtime, TOCTOU, malformed JSON | ✅ All fixed |
 
 ---
 
-## Bugs Fixed Previously (2026-05-19)
+## Bugs Fixed Since May 22
 
-### BUG-AUTH-01 — Dual React Instances Crash
-
-`@supabase/auth-ui-react@0.4.7` bundles React 18 as a direct dependency. With React 19, npm installed two React copies → hook dispatcher mismatch → error boundary on every page load.
-
-**Fix:** Replaced `<Auth>` with custom email/password form; uninstalled both auth-ui packages.
-
-### BUG-AUTH-02 — Truncated `.env` Values
-
-`VITE_SUPABASE_ANON_KEY` and `PUSH_ADMIN_TOKEN` contained literal `...` suffixes — blurred display values pasted instead of real keys.
-
-**Fix:** Updated `.env` with full 208-char JWT anon key and freshly generated 64-char hex admin token.
+- `saveSong` was not calling `sendSongPushNotification` — now does on add/update
+- `send-song.js` silently ignored `excludeEndpoint` from request body — now reads and passes it
+- `addNotification` guard rejected all non-lineup notifications (`!notification.lineupId`) — now accepts song + URL types
+- Cross-channel dedup key `null:song_created` shared by all songs — now uses `entityId || songId`
+- `createLineupNotificationFromPush` returned null for song payloads — now handles `song_*` types
+- `NotificationBell.jsx` — sound toggle, diagnostic UI, phone push settings all removed; clean bell UI implemented
+- `send-lineup.js` and `send-song.js` — native FCM integrated as primary delivery
 
 ---
 
@@ -249,9 +283,12 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 | `VAPID_PRIVATE_KEY` | ✅ Set | 43 chars | |
 | `VAPID_SUBJECT` | ✅ Set | 33 chars | |
 | `PUSH_ADMIN_TOKEN` | ✅ Set | 64 chars | |
-| `FIREBASE_PROJECT_ID` | ❌ Not set | — | Required for Phase 4 native push (Android FCM only) |
-| `FIREBASE_CLIENT_EMAIL` | ❌ Not set | — | Required for Phase 4 native push (Android FCM only) |
-| `FIREBASE_PRIVATE_KEY` | ❌ Not set | — | Required for Phase 4 native push (Android FCM only) |
+| `VITE_PUSH_ADMIN_TOKEN` | ✅ Set | 64 chars | Client-accessible copy; must also be set in Vercel |
+| `FIREBASE_PROJECT_ID` | ✅ Set | — | Set in `.env`; **must also be set in Vercel project settings** |
+| `FIREBASE_CLIENT_EMAIL` | ✅ Set | — | Set in `.env`; **must also be set in Vercel project settings** |
+| `FIREBASE_PRIVATE_KEY` | ✅ Set | — | Set in `.env`; **must also be set in Vercel project settings** |
+
+> All Firebase vars are now present in local `.env`. Verify they are also set in Vercel → Settings → Environment Variables before testing FCM delivery from deployed API.
 
 ---
 
@@ -259,97 +296,45 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 
 | Task | Status | Notes |
 |---|---|---|
-| `npm run dev` | ✅ Pass | Vite dev server at `http://localhost:5173` |
-| `npm run build` | ✅ Pass | 1686 modules, clean output |
+| `npm run build` | ✅ Pass | Clean; last confirmed 2026-05-25 |
 | `npm test` | ✅ Pass | 20 Vitest tests passing |
-| `npm run lint` | ✅ Pass | ESLint 9.19 flat config, no errors |
+| `npm run lint` | ✅ Pass | No errors |
 | `vercel dev` | ✅ Pass | Frontend + serverless API together |
-| Service Worker (dev) | ⚠️ Expected error | SW requires HTTPS or production build — not a bug |
+| Debug APK (Android) | ✅ Built | Built 2026-05-25; notification banners working; sound under test |
+| Signed release APK | ❌ Pending | Android Studio → Build → Generate Signed Bundle/APK |
 
 ---
 
-## ✅ Completed Steps
+## Next Steps (Priority Order)
 
-- Phase 0: Node 18+ confirmed, Capacitor CLI installed
-- Phase 1: `api/church/join.js` — invite-code join endpoint
-- Phase 1: `api/church/create.js` — create-church endpoint with rollback *(improvement beyond tutorial)*
-- Phase 2: `src/utils/supabase.js` — auth options configured
-- Phase 2: `src/pages/AuthPage.jsx` — custom email/password form (no auth-ui-react)
-- Phase 2: `src/pages/JoinChurchPage.jsx` — join + create flows using API routes
-- Phase 2: `src/App.jsx` — full auth gate (session + churchId + authLoading), `loadChurch()`, `handleSignOut()`
-- Phase 2: `src/utils/storage.js` — `setActiveChurch` / `getActiveChurchId` / `clearChurchData`, `church_id` in `saveSong` + `saveLineup`
-- Phase 3: All 5 steps — Capacitor installed, inited, config updated, iOS/Android platforms added
-- Phase 4 (partial): `@capacitor/push-notifications` v8.1.1 installed and synced
-- Phase 4: `src/utils/nativePush.js` created — permission check, FCM token registration, 4 Capacitor listeners
-- Phase 4: `api/push/subscribe-native.js` created — Supabase upsert, CORS, OPTIONS preflight, UUID validation, request logging
-- Phase 4: `firebase-admin` installed; `api/_nativePush.js` created with `sendNativePush()` + invalid token cleanup
-- Phase 4: `registerNativePush(session.user.id)` wired into `App.jsx` for both new logins and returning sessions
-- Phase 5: `@capacitor/network@8.0.1` installed + synced; `useOffline.js` updated — native uses `Network` plugin, web falls back to `useSyncStatus`
-- Phase 8 (partial): Vercel web deployment ready
+1. **Fix `MainActivity.java` channel ID** — change `CHANNEL_ID = "lineup_updates"` to `"lineup_updates_v2"` (one line). All other files already use v2; this is the last inconsistency.
 
----
+2. **Fix `nativePush.js` createChannel missing `name` field** — add `name: 'Lineup Updates'` to the `createChannel` call object (one line).
 
-## 🔄 In-Progress / Broken Steps
+3. **Test notification sound on Xiaomi M2102J20SG** — connect device, run `npx cap sync && npx cap open android`, build + install debug APK, trigger a lineup or song notification, verify banner appears with sound.
 
-- **Phase 1 SQL** — tables and RLS not applied to Supabase; blocks all multi-tenancy
-- **Phase 4 native push** — all code done; Firebase account, `google-services.json`, Gradle plugin edits, and Firebase env vars still pending
-- ~~Phase 5 offline~~ ✅ Complete
-- **H1 duplicate notifications** — dual-writer pattern still exists in `api/_push.js` + DB trigger
-- **L1 client push log** — subscription payload still logged unconditionally in `pushNotifications.js:~369`
-- **Schema drift** — `supabase-schema.sql` does not reflect deployed DB (Phase 1 tables, functions, RLS policies, `native_push_tokens` table all missing from repo file)
+4. **Set Firebase env vars in Vercel** — `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` must be in Vercel project settings for the deployed API to send FCM pushes. Also set `VITE_PUSH_ADMIN_TOKEN` there if not already done.
 
----
+5. **Fix `subscribe-native.js` column name mismatch** — verify actual column name in Supabase `native_push_tokens` table (`token` per migration, `fcm_token` per code). Fix whichever is wrong.
 
-## ❌ Missing Steps (Not Started)
+6. **Run Phase 1 SQL in Supabase SQL Editor** — paste `phase1-migration.sql`, run it. Creates `churches`, `church_members`, adds `church_id` columns, applies RLS functions + policies. Unblocks Settings invite code display and proper multi-tenancy.
 
-- Phase 1: Run SQL for `churches`, `church_members`, `church_id` column additions, `my_church_id()`, `is_church_admin()`, church-scoped RLS policies
-- Phase 1: Enable Supabase Auth in dashboard (email signups + redirect URLs)
-- Phase 4: Create `native_push_tokens` table in Supabase
-- Phase 4: Android — `google-services.json`, Gradle plugin edits
-- Phase 4: Add Firebase env vars to Vercel + `.env` (`FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`)
-- ~~Phase 5: Install `@capacitor/network`, update `useOffline.js`~~ ✅ Done
-- Phase 6: Build Settings page with invite code display for admins
-- Phase 7: Install `@capacitor/splash-screen`
-- Phase 7: Run `npx capacitor-assets generate` for Android sizes only
-- Phase 8: Android Play Store submission (Android Studio AAB)
+7. **Enable Supabase Auth in dashboard** — email signups + Site URL + `http://localhost:5173` redirect URL. 2 minutes in the Supabase dashboard.
 
----
+8. **Test full auth + church flow end-to-end** — sign up → confirm email → login → join/create church → verify data isolation per church.
 
-## 📋 Next Steps (Priority Order)
+9. **Fix H1 dual-writer** — remove `createLineupNotificationRecords()` API-side insert in `api/_push.js`; rely on DB trigger only.
 
-1. **Install Android Studio** (free, local)  
-   Required for running the Android emulator and building signed APKs/AABs. Do this before any native Android testing.
+10. **Fix L1 client push log** — gate subscription payload log in `pushNotifications.js:~369` behind `IS_DEV`.
 
-2. **Run Phase 1 SQL in Supabase SQL Editor** ← highest impact unblock  
-   Creates `churches`, `church_members`, adds `church_id` columns, applies `my_church_id()` + `is_church_admin()` RLS functions, and church-scoped RLS policies. This is the foundation for everything below.
+11. **Phase 7 — Icons + splash (Android only)** — `npm install @capacitor/splash-screen`, run `npx capacitor-assets generate` for Android sizes using `public/icon-512.png`.
 
-3. **Enable Supabase Auth in dashboard** (Phase 1-1)  
-   Email signups + Site URL + `http://localhost:5173` redirect. Takes 2 minutes in the dashboard.
+12. **Generate signed release APK** — Android Studio → Build → Generate Signed Bundle/APK → upload to Google Play Console internal test track.
 
-4. **Test full auth flow end-to-end in browser**  
-   Sign up → confirm email → login → `JoinChurchPage` (create or join) → main app. Verify `church_id` is set and data is isolated.
+13. **Test thoroughly on physical Android device** — verify all features work end-to-end (auth, church join, songs, lineups, push notifications with sound) before spending money.
 
-5. **Fix `api/church/join.js:21` — `.single()` → `.maybeSingle()`**  
-   One-line fix. Prevents a potential PGRST116 error from leaking to users if invite code lookup returns 0 rows via a different error path.
+14. **Install Android Studio** if not done — required for emulator and signed APK generation.
 
-6. **Fix H1 dual-writer** — remove `createLineupNotificationRecords()` API-side insert in `api/_push.js`; rely on DB trigger only.
+15. **Pay $25 and register Google Play Developer account** — only after all above is verified working on real hardware.
 
-7. **Fix L1 client push log** — gate subscription payload log behind `import.meta.env.DEV` in `pushNotifications.js`.
-
-8. ~~**Phase 5 — Install `@capacitor/network`, update `useOffline.js`**~~ ✅ Complete
-
-9. **Phase 6 — Settings page** with invite code display for admins (fetch `churches.invite_code` after Phase 1 SQL is applied).
-
-10. **Phase 4 (Firebase account + config)** — Create free Firebase project, add Android app, download `google-services.json` → `android/app/`, apply Gradle plugin edits, add `FIREBASE_PROJECT_ID` / `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` to Vercel env vars and `.env`. Create `native_push_tokens` table in Supabase. All code is already written.
-
-11. **Test thoroughly on Android emulator and physical Android device** — verify all features work end-to-end before spending any money. Quality gate before any paid steps.
-
-12. **Phase 7 — Icons + splash (Android only)** — `npm install @capacitor/splash-screen`, run `npx capacitor-assets generate` for Android sizes only.
-
-13. **Create free Firebase project** — add Android app, download `google-services.json`, add Gradle plugin edits, set Firebase env vars in Vercel + `.env`, finish Phase 4 push end-to-end. Firebase free tier is sufficient at current scale.
-
-14. **Test push notifications on real Android device** — confirm FCM delivery works end-to-end on hardware.
-
-15. **Pay $25 and register Google Play Developer account** — only after all the above is verified working on real hardware.
-
-16. **Phase 8 — Android Play Store** — build signed AAB in Android Studio, submit to Play Store.
+16. **Phase 8 — Play Store submission** — signed AAB upload to Google Play Console.

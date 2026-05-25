@@ -1,13 +1,12 @@
 /* global __APP_BUILD_VERSION__, __APP_VERSION__ */
 import { getMetadata, NOTIFICATION_METADATA_KEYS } from './indexedDbNotifications';
+import { supabase } from './supabase';
 
 const PUSH_SUBSCRIPTION_ENDPOINT_KEY = 'lineupManagerPushSubscriptionEndpoint';
 const LEGACY_PUSH_DEVICE_ID_KEY = 'lineupManagerPushDeviceId';
 const DEVICE_ID_KEY = 'ccfbc_device_id';
 const STABLE_PRODUCTION_HOST = 'ccfbc-lineup-manager-code.vercel.app';
 const API_BASE = '/api/push';
-// Set VITE_PUSH_ADMIN_TOKEN in .env (same value as server-side PUSH_ADMIN_TOKEN).
-const PUSH_ADMIN_TOKEN = import.meta.env.VITE_PUSH_ADMIN_TOKEN || '';
 const IS_DEV = import.meta.env.DEV;
 const BUILD_VERSION = typeof __APP_BUILD_VERSION__ === 'string' ? __APP_BUILD_VERSION__ : 'dev';
 const APP_VERSION = import.meta.env.VITE_APP_VERSION || (typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : BUILD_VERSION);
@@ -30,6 +29,12 @@ function logPush(message, details) {
     return;
   }
   console.info(`[PushNotifications] ${message}`, details);
+}
+
+async function getAuthHeader() {
+  if (!supabase) return {};
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
 }
 
 function urlBase64ToUint8Array(base64String) {
@@ -877,7 +882,7 @@ export async function sendLineupPushNotification(lineup, { eventType = 'UPDATE',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(PUSH_ADMIN_TOKEN ? { Authorization: `Bearer ${PUSH_ADMIN_TOKEN}` } : {}),
+        ...(await getAuthHeader()),
       },
       body: JSON.stringify({
         lineupId: lineup.id,
@@ -903,11 +908,12 @@ export async function sendSongPushNotification(song, { eventType = 'CREATE', exc
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(PUSH_ADMIN_TOKEN ? { Authorization: `Bearer ${PUSH_ADMIN_TOKEN}` } : {}),
+        ...(await getAuthHeader()),
       },
       body: JSON.stringify({
         songId: song.id || null,
         songTitle: song.title,
+        churchId: song.churchId || null,
         eventType,
         url: song.id ? `/songs/${song.id}` : '/songs',
         excludeEndpoint: excludeCurrentDevice ? getStoredPushSubscriptionEndpoint() : '',

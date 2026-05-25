@@ -55,16 +55,28 @@ export function getRequestBody(request) {
   return typeof request.body === 'object' ? request.body : {};
 }
 
-export function requireAdminToken(request, response) {
-  const token = process.env.PUSH_ADMIN_TOKEN;
-  if (!token) return false;
+export async function requireAdminToken(request, response) {
+  const adminToken = process.env.PUSH_ADMIN_TOKEN;
   const auth = getHeader(request, 'authorization') || getHeader(request, 'x-admin-token');
   const provided = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
-  if (provided !== token) {
-    response.status(401).json({ error: 'Unauthorized.' });
-    return true;
+
+  // Server-to-server: static admin token
+  if (adminToken && provided === adminToken) return false;
+
+  // Frontend user: valid Supabase JWT
+  if (provided) {
+    const supabaseAdmin = getSupabaseAdmin();
+    if (supabaseAdmin) {
+      const { data: { user }, error } = await supabaseAdmin.auth.getUser(provided);
+      if (!error && user) return false;
+    }
   }
-  return false;
+
+  // Preserve original open behavior when PUSH_ADMIN_TOKEN is not configured
+  if (!adminToken) return false;
+
+  response.status(401).json({ error: 'Unauthorized.' });
+  return true;
 }
 
 export function getHeader(request, name) {
@@ -692,7 +704,7 @@ export async function markExpiredSubscriptions(supabase, endpoints) {
   }
 }
 
-export async function loadPushSubscriptions(supabase, { excludeEndpoint = '', targetEndpoint = '' } = {}) {
+export async function loadPushSubscriptions(supabase, { excludeEndpoint = '', targetEndpoint = '', churchId = null } = {}) {
   let query = supabase
     .from('push_subscriptions')
     .select('endpoint,p256dh,auth,is_active,device_id,platform');
@@ -702,6 +714,7 @@ export async function loadPushSubscriptions(supabase, { excludeEndpoint = '', ta
   } else {
     query = query.eq('is_active', true);
   }
+  if (churchId) query = query.eq('church_id', churchId);
 
   let { data, error } = await query;
 
@@ -999,7 +1012,7 @@ export async function sendPushPayloadToSubscriptions(supabase, payload, subscrip
   return summary;
 }
 
-export async function sendPushPayload(supabase, payload, { excludeEndpoint = '', targetEndpoint = '' } = {}) {
-  const subscriptions = await loadPushSubscriptions(supabase, { excludeEndpoint, targetEndpoint });
+export async function sendPushPayload(supabase, payload, { excludeEndpoint = '', targetEndpoint = '', churchId = null } = {}) {
+  const subscriptions = await loadPushSubscriptions(supabase, { excludeEndpoint, targetEndpoint, churchId });
   return sendPushPayloadToSubscriptions(supabase, payload, subscriptions);
 }

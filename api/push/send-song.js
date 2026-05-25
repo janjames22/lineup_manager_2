@@ -6,10 +6,15 @@ import {
   requireAdminToken,
   sendPushPayload,
 } from '../_push.js';
+import {
+  sendNativePush,
+  loadNativePushTokens,
+  deactivateInvalidNativeTokens,
+} from '../_nativePush.js';
 
 export default async function handler(request, response) {
   if (!allowMethods(request, response, ['POST'])) return;
-  if (requireAdminToken(request, response)) return;
+  if (await requireAdminToken(request, response)) return;
 
   const supabase = getSupabaseAdmin();
   if (!supabase) {
@@ -17,7 +22,7 @@ export default async function handler(request, response) {
     return;
   }
 
-  const { songId, songTitle, eventType = 'CREATE', url } = getRequestBody(request);
+  const { songId, songTitle, eventType = 'CREATE', url, excludeEndpoint, churchId = null } = getRequestBody(request);
   if (!songTitle) {
     response.status(400).json({ error: 'Missing songTitle.' });
     return;
@@ -56,6 +61,31 @@ export default async function handler(request, response) {
       is_read: false,
     });
 
+    // 1. Native FCM push — primary delivery for Android app users
+    let nativeResult = { successCount: 0, failureCount: 0 };
+    try {
+      const fcmTokens = await loadNativePushTokens(supabase, churchId);
+      if (fcmTokens.length) {
+        nativeResult = await sendNativePush(fcmTokens, {
+          title,
+          body: songTitle,
+          data: {
+            url: songUrl,
+            type: 'song',
+            notificationType,
+            notificationId,
+            songId: songId ? String(songId) : '',
+          },
+        });
+        if (nativeResult.invalidTokens?.length) {
+          await deactivateInvalidNativeTokens(supabase, nativeResult.invalidTokens);
+        }
+      }
+    } catch (nativeErr) {
+      console.error('[NativePush] song native push failed:', nativeErr.message || nativeErr);
+    }
+
+    // 2. Web push — fallback for browser users
     const payload = createPushPayload({
       type: 'song',
       notificationType,
@@ -68,9 +98,15 @@ export default async function handler(request, response) {
       timestamp: now,
       createdAt: now,
     });
+    const webResult = await sendPushPayload(supabase, payload, { excludeEndpoint: excludeEndpoint || '', churchId });
 
-    const result = await sendPushPayload(supabase, payload);
-    response.status(200).json({ ...result, notificationType, title });
+    response.status(200).json({
+      ...webResult,
+      nativeSuccessCount: nativeResult.successCount,
+      nativeFailureCount: nativeResult.failureCount,
+      notificationType,
+      title,
+    });
   } catch (error) {
     console.error('[PushNotifications] failed to send song push:', error.cause || error);
     response.status(error.statusCode || 500).json({ error: error.message || 'Unable to send song push notification.' });

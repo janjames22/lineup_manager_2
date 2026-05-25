@@ -18,7 +18,7 @@ export default async function handler(req, res) {
     .from('churches')
     .select('id')
     .eq('invite_code', invite_code.trim().toLowerCase())
-    .single();
+    .maybeSingle();
   if (churchError || !church) return res.status(404).json({ error: 'Invalid invite code' });
 
   const { error: upsertError } = await supabase.from('church_members').upsert(

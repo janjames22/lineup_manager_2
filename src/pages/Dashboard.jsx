@@ -25,13 +25,13 @@ export default function Dashboard({ onShareApp, session, churchId }) {
         .select('role')
         .eq('church_id', churchId)
         .eq('user_id', session.user.id)
-        .single();
+        .maybeSingle();
       if (memberError || member?.role !== 'admin') return;
       const { data: church, error: churchError } = await supabase
         .from('churches')
         .select('invite_code')
         .eq('id', churchId)
-        .single();
+        .maybeSingle();
       if (churchError) {
         console.error('[Dashboard] invite code fetch failed:', churchError.message);
         return;

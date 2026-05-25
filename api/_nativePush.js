@@ -18,6 +18,16 @@ export async function sendNativePush(tokens, payload) {
       title: payload.title,
       body: payload.body,
     },
+    android: {
+      priority: 'high',
+      notification: {
+        channelId: 'lineup_updates_v2',
+        sound: 'default',
+        defaultSound: true,
+        vibrateTimingsMillis: [0, 250, 250, 250],
+        defaultVibrateTimings: false,
+      },
+    },
     data: payload.data || {},
     tokens,
   };
@@ -42,4 +52,26 @@ export async function sendNativePush(tokens, payload) {
     failureCount: response.failureCount,
     invalidTokens,
   };
+}
+
+export async function loadNativePushTokens(supabase, churchId = null) {
+  let query = supabase
+    .from('native_push_tokens')
+    .select('*')
+    .eq('is_active', true);
+  if (churchId) query = query.eq('church_id', churchId);
+  const { data, error } = await query;
+  if (error) {
+    console.error('[NativePush] failed to load tokens:', error.message);
+    return [];
+  }
+  return (data || []).map((r) => r.fcm_token).filter(Boolean);
+}
+
+export async function deactivateInvalidNativeTokens(supabase, tokens) {
+  if (!tokens?.length) return;
+  await supabase
+    .from('native_push_tokens')
+    .update({ is_active: false })
+    .in('fcm_token', tokens);
 }

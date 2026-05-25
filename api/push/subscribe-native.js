@@ -5,12 +5,10 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
 export default async function handler(req, res) {
@@ -24,16 +22,23 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { userId, token, platform } = req.body;
-  console.log('[subscribe-native] req.body:', JSON.stringify({ userId, token: token ? `${token.slice(0, 8)}…` : token, platform }));
-
-  if (!userId || !token) {
-    return res.status(400).json({ error: 'Missing userId or token' });
+  const bearerToken = req.headers.authorization?.replace('Bearer ', '') || null;
+  if (!bearerToken) {
+    return res.status(401).json({ error: 'Missing Authorization header' });
   }
 
-  if (!UUID_RE.test(userId)) {
-    console.error('[subscribe-native] Invalid userId (not a UUID):', userId);
-    return res.status(400).json({ error: `userId must be a valid UUID, received: ${userId}` });
+  const { data: { user }, error: authError } = await supabase.auth.getUser(bearerToken);
+  if (authError || !user) {
+    return res.status(401).json({ error: 'Invalid or expired session' });
+  }
+
+  const { token, platform } = req.body;
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[subscribe-native] user:', user.id, 'token:', token ? `${token.slice(0, 8)}…` : token);
+  }
+
+  if (!token) {
+    return res.status(400).json({ error: 'Missing token' });
   }
 
   try {
@@ -41,7 +46,7 @@ export default async function handler(req, res) {
       .from('native_push_tokens')
       .upsert(
         {
-          user_id: userId,
+          user_id: user.id,
           fcm_token: token,
           platform: platform || 'android',
           updated_at: new Date().toISOString(),

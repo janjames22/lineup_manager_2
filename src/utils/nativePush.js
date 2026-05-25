@@ -1,7 +1,7 @@
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
 
-export async function registerNativePush(userId) {
+export async function registerNativePush(accessToken) {
   if (!Capacitor.isNativePlatform()) {
     console.log('[nativePush] Skipping — not a native platform');
     return;
@@ -15,14 +15,28 @@ export async function registerNativePush(userId) {
     throw new Error('Push notification permission denied');
   }
 
+  // Create high-importance channel before registering so FCM banners and sound work on Android 8+
+  if (Capacitor.getPlatform() === 'android') {
+    await PushNotifications.createChannel({
+      id: 'lineup_updates_v2',
+      name: 'Lineup Updates',
+      description: 'Notifications for new lineups and song updates',
+      importance: 5,
+      visibility: 1,
+      sound: 'default',
+      vibration: true,
+      lights: true,
+    });
+  }
+
   await PushNotifications.register();
 
   PushNotifications.addListener('registration', async (token) => {
-    console.log('[nativePush] FCM token:', token.value);
-    await fetch('https://lineup-manager-2.vercel.app/api/push/subscribe-native', {
+    if (import.meta.env.DEV) console.log('[nativePush] FCM token:', token.value.slice(0, 8) + '…');
+    await fetch('/api/push/subscribe-native', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, token: token.value, platform: 'android' }),
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+      body: JSON.stringify({ token: token.value, platform: 'android' }),
     });
   });
 
@@ -35,6 +49,9 @@ export async function registerNativePush(userId) {
   });
 
   PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-    console.log('[nativePush] Notification tapped:', action);
+    const url = action.notification.data?.url;
+    if (url) {
+      window.dispatchEvent(new CustomEvent('nativePushNavigate', { detail: { url } }));
+    }
   });
 }
