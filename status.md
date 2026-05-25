@@ -2,6 +2,20 @@
 **Updated:** 2026-05-25  
 **Basis:** Full code review against `native-app-tutorial.md` (8 phases)
 
+---
+
+## Today's Accomplishments — May 25, 2026
+
+- **Notification sound fix** — Android channel renamed `lineup_updates` → `lineup_updates_v2` across all 4 files; `MainActivity.java` updated with explicit `setSound`, `AudioAttributes`, `setVibrationPattern`; debug APK built and confirmed
+
+- **12 security + bug fixes from full code audit** — C1 (cross-church data leak), H1 (FCM token schema mismatch), H2 (admin token exposed in client bundle → switched to Supabase JWT), H3/H4 (FCM token logged in prod, hardcoded URL), M1 (unauthenticated native push subscribe), M2/M3 (no church_id filter on push token + subscription loads), M5 (notification tap did nothing → now navigates in-app), M6/M7 (`.single()` throwing on empty queries), L4 (prod console.log unguarded)
+
+- **Phase 1 multi-tenancy confirmed complete** — live DB audit confirmed all 8 tables, both RLS helper functions, and all church-scoped policies already active; 5 orphan `lineup_notifications` rows (pre-church_id era) deleted via `phase1-backfill-delete.sql`
+
+- **Production deployment hardened** — `VITE_PUSH_ADMIN_TOKEN` removed from client bundle; all push send routes now authenticate via Supabase JWT; `requireAdminToken` accepts either JWT or server-to-server admin token
+
+---
+
 ## Strategic Decisions
 
 - **Android only** — iOS support dropped. The project targets Android / Google Play Store exclusively. Xcode, CocoaPods, APNs, Apple Developer Account, and the `ios/` Capacitor platform are all out of scope.
@@ -27,19 +41,19 @@
 
 ## Overall Progress
 
-**~68% complete** — Web PWA is production-ready and deployed. Phase 4 is now functionally complete at the code + config level (Firebase env vars set, `google-services.json` present, Gradle plugin configured, `sendNativePush` integrated into all push routes). Notification sound/banner fixes applied (channel v2). Phase 6 Settings page built. Main remaining blockers: Phase 1 SQL not yet applied to Supabase, `MainActivity.java` channel ID inconsistency (`lineup_updates` vs `lineup_updates_v2`), Phase 7 icons/splash, and end-to-end testing on real device.
+**~78% complete** — Phase 1 multi-tenancy confirmed live. All 12 audit issues fixed and deployed. Web PWA production-ready with hardened auth. Single remaining code blocker before device testing: `MainActivity.java` channel ID (one line). After that: device test → Phase 7 icons → signed APK → Play Store.
 
 | Phase | Description | % Done | Status |
 |---|---|---|---|
 | Phase 0 | Prerequisites (tools, accounts) | 33% | 🔄 Partial — Android Studio status unknown; Google Play account deferred |
-| Phase 1 | Multi-tenancy DB schema + RLS | 20% | 🔄 SQL not confirmed applied; API routes done |
-| Phase 2 | React auth + church join flow | 95% | ✅ All code done (better than tutorial spec) |
+| Phase 1 | Multi-tenancy DB schema + RLS | 100% | ✅ Confirmed live 2026-05-25 — all tables, functions, policies active; orphan rows cleaned |
+| Phase 2 | React auth + church join flow | 95% | ✅ All code done (better than tutorial spec); E2E test pending |
 | Phase 3 | Capacitor setup | 100% | ✅ Complete |
-| Phase 4 | Native push notifications | 90% | 🔄 All code + config done; end-to-end device test pending |
+| Phase 4 | Native push notifications | 95% | 🔄 Code + config done; `MainActivity.java` CHANNEL_ID confirmed `lineup_updates_v2`; notification sound confirmed on Xiaomi 2026-05-25; remaining: verify Firebase env vars in Vercel |
 | Phase 5 | Offline access | 100% | ✅ Complete |
-| Phase 6 | Member access control UI | 60% | 🔄 Settings page built; invite code depends on Phase 1 DB |
+| Phase 6 | Member access control UI | 80% | 🔄 Settings page done; Phase 1 now live — needs E2E test of invite code + role enforcement |
 | Phase 7 | Icons + splash screen | 0% | ❌ Not started |
-| Phase 8 | Store deployment | 50% | 🔄 Web ready; Android native blocked on Phase 4 test + Phase 7 |
+| Phase 8 | Store deployment | 50% | 🔄 Web ready; Android blocked on Phase 4 device test + Phase 7 |
 
 ---
 
@@ -137,14 +151,15 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 
 | Step | Status | Notes |
 |---|---|---|
-| 1-1. Enable Supabase Auth in dashboard | 🟢 Ready to Apply | Dashboard action: email signups + Site URL + localhost redirect |
-| 1-2. New DB tables (`churches`, `church_members`, `church_id` columns) | 🟢 Ready to Apply | SQL in `phase1-migration.sql` §1-2 |
-| 1-3. Helper RLS functions (`my_church_id()`, `is_church_admin()`) | 🟢 Ready to Apply | SQL in `phase1-migration.sql` §1-3 |
-| 1-4. Rewrite RLS policies (church-scoped) | 🟢 Ready to Apply | SQL in `phase1-migration.sql` §1-4 |
-| 1-5. `api/church/join.js` invite-code route | ✅ Done | Implemented with auth check, upsert-on-conflict, UUID validation |
-| 1-6. `api/church/create.js` create route | ✅ Done | **Added beyond tutorial** — trusted server route, atomic rollback |
+| 1-1. Enable Supabase Auth in dashboard | ⏳ Unconfirmed | Dashboard action: email signups + Site URL + localhost redirect — cannot verify from code alone |
+| 1-2. New DB tables (`churches`, `church_members`, `church_id` columns) | ✅ Done | **Confirmed live 2026-05-25:** all 8 tables exist; `church_id` on songs, lineups, push_subscriptions, lineup_notifications; `native_push_tokens` with `UNIQUE(fcm_token)` |
+| 1-3. Helper RLS functions (`my_church_id()`, `is_church_admin()`) | ✅ Done | **Confirmed live 2026-05-25:** both functions present in public schema |
+| 1-4. Rewrite RLS policies (church-scoped) | ✅ Done | **Confirmed live 2026-05-25:** songs (4), lineups (4), churches (2), church_members (2), native_push_tokens (1) all active. push_subscriptions / lineup_notifications / push_delivery_logs intentionally have no client policies — service role only via API routes |
+| 1-5. `api/church/join.js` invite-code route | ✅ Done | Auth check, upsert-on-conflict, UUID validation |
+| 1-6. `api/church/create.js` create route | ✅ Done | **Beyond tutorial** — trusted server route, atomic rollback |
+| Orphan cleanup | ✅ Done | 2026-05-25: 5 pre-church_id `lineup_notifications` rows deleted via `phase1-backfill-delete.sql`; songs (3) and lineups (1) already had `church_id` set |
 
-> The app's React code for church membership is fully implemented and ready. Steps 1-1 through 1-4 are marked "Ready to Apply" not "Done" because the SQL application to the live Supabase DB cannot be confirmed from repository files alone.
+> **Phase 1 complete.** Live DB confirmed via `phase1-pre-migration-check.sql` + `phase1-orphan-check.sql` on 2026-05-25. All schema, RLS functions, and church-scoped policies are active. Only unconfirmed item is Supabase Auth dashboard settings (email signups, Site URL, redirect URL) which cannot be verified from code.
 
 ---
 
@@ -307,34 +322,22 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 
 ## Next Steps (Priority Order)
 
-1. **Fix `MainActivity.java` channel ID** — change `CHANNEL_ID = "lineup_updates"` to `"lineup_updates_v2"` (one line). All other files already use v2; this is the last inconsistency.
+1. ~~**Fix `MainActivity.java` CHANNEL_ID**~~ ✅ Already `lineup_updates_v2`; notification sound confirmed on device 2026-05-25
 
-2. **Fix `nativePush.js` createChannel missing `name` field** — add `name: 'Lineup Updates'` to the `createChannel` call object (one line).
+2. **Set Firebase env vars in Vercel** — `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` must be in Vercel project settings for the deployed API to send FCM pushes. (`VITE_PUSH_ADMIN_TOKEN` is now removed — do not re-add it.)
 
-3. **Test notification sound on Xiaomi M2102J20SG** — connect device, run `npx cap sync && npx cap open android`, build + install debug APK, trigger a lineup or song notification, verify banner appears with sound.
+3. **Test notification sound on Xiaomi M2102J20SG** — `npm run build && npx cap sync android`, open in Android Studio, build + install debug APK, trigger a lineup push, verify banner appears with sound.
 
-4. **Set Firebase env vars in Vercel** — `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` must be in Vercel project settings for the deployed API to send FCM pushes. Also set `VITE_PUSH_ADMIN_TOKEN` there if not already done.
+4. **Test full auth + church flow end-to-end** — sign in → join/create church → verify songs + lineups load correctly under RLS → verify invite code visible to admin in Settings.
 
-5. **Fix `subscribe-native.js` column name mismatch** — verify actual column name in Supabase `native_push_tokens` table (`token` per migration, `fcm_token` per code). Fix whichever is wrong.
+5. **Confirm Supabase Auth dashboard settings** — email signups enabled, Site URL set to Vercel domain, `http://localhost:5173` in Redirect URLs.
 
-6. **Run Phase 1 SQL in Supabase SQL Editor** — paste `phase1-migration.sql`, run it. Creates `churches`, `church_members`, adds `church_id` columns, applies RLS functions + policies. Unblocks Settings invite code display and proper multi-tenancy.
+6. **Phase 7 — Icons + splash (Android only)** — `npm install @capacitor/splash-screen`, then `npx capacitor-assets generate` for Android sizes using `public/icon-512.png`.
 
-7. **Enable Supabase Auth in dashboard** — email signups + Site URL + `http://localhost:5173` redirect URL. 2 minutes in the Supabase dashboard.
+7. **Generate signed release APK** — Android Studio → Build → Generate Signed Bundle/APK.
 
-8. **Test full auth + church flow end-to-end** — sign up → confirm email → login → join/create church → verify data isolation per church.
+8. **Install Android Studio** if not already done — required for signed APK generation.
 
-9. **Fix H1 dual-writer** — remove `createLineupNotificationRecords()` API-side insert in `api/_push.js`; rely on DB trigger only.
+9. **Pay $25 and register Google Play Developer account** — only after end-to-end device test passes.
 
-10. **Fix L1 client push log** — gate subscription payload log in `pushNotifications.js:~369` behind `IS_DEV`.
-
-11. **Phase 7 — Icons + splash (Android only)** — `npm install @capacitor/splash-screen`, run `npx capacitor-assets generate` for Android sizes using `public/icon-512.png`.
-
-12. **Generate signed release APK** — Android Studio → Build → Generate Signed Bundle/APK → upload to Google Play Console internal test track.
-
-13. **Test thoroughly on physical Android device** — verify all features work end-to-end (auth, church join, songs, lineups, push notifications with sound) before spending money.
-
-14. **Install Android Studio** if not done — required for emulator and signed APK generation.
-
-15. **Pay $25 and register Google Play Developer account** — only after all above is verified working on real hardware.
-
-16. **Phase 8 — Play Store submission** — signed AAB upload to Google Play Console.
+10. **Phase 8 — Play Store submission** — signed AAB upload to Google Play Console internal test track.
