@@ -1,5 +1,5 @@
 # CCFBC Line Up Manager — Status
-**Updated:** 2026-05-25  
+**Updated:** 2026-05-28  
 **Basis:** Full code review against `native-app-tutorial.md` (8 phases)
 
 ---
@@ -26,6 +26,8 @@
 
 ## Recent Updates (since 2026-05-22)
 
+- **Phase 7 complete (2026-05-28)** — App icon and splash screen configured for Android. Source: `public/app-icon-1024.png` (1024px treble-clef-cross, white on blue circle, dark navy bg). `@capacitor/splash-screen@8.0.1` and `@capacitor/assets@3.0.5` installed. Adaptive icon foreground/background layers fixed: `capacitor-assets generate` only updates flat `ic_launcher.png` — the old Capacitor blue-X `ic_launcher_foreground.png` (used by `mipmap-anydpi-v26/ic_launcher.xml` on API 26+) was manually replaced at all 5 densities. `ic_launcher_background` color updated `#FFFFFF` → `#0f172a`. Splash config: `launchShowDuration: 1500`, `backgroundColor: '#0f172a'`, `showSpinner: false`. Icon confirmed on Xiaomi M2102J20SG home screen 2026-05-28.
+
 - **Song notifications** — `api/push/send-song.js` created; `saveSong` now sends FCM + web push on add/update; `SongDetail.jsx` sends push on delete; all three call `dispatchLocalNotification` so the saving device also sees the notification in the bell panel
 - **Notification panel simplified** — removed sound toggle, diagnostic UI, phone push settings; replaced with clean bell icon + dropdown (unread badge, mark-all-read, time-ago, Music icon for song events)
 - **`NotificationsContext.js`** created; `App.jsx` provides `dispatchLocalNotification` via context; `SongForm.jsx` and `SongDetail.jsx` consume it
@@ -41,7 +43,7 @@
 
 ## Overall Progress
 
-**~78% complete** — Phase 1 multi-tenancy confirmed live. All 12 audit issues fixed and deployed. Web PWA production-ready with hardened auth. Single remaining code blocker before device testing: `MainActivity.java` channel ID (one line). After that: device test → Phase 7 icons → signed APK → Play Store.
+**~85% complete** — Phases 1–7 complete. App icon (treble-clef-cross) confirmed on Xiaomi home screen. Remaining: Firebase env vars in Vercel, E2E device test, signed APK, Play Store submission.
 
 | Phase | Description | % Done | Status |
 |---|---|---|---|
@@ -52,8 +54,8 @@
 | Phase 4 | Native push notifications | 95% | 🔄 Code + config done; `MainActivity.java` CHANNEL_ID confirmed `lineup_updates_v2`; notification sound confirmed on Xiaomi 2026-05-25; remaining: verify Firebase env vars in Vercel |
 | Phase 5 | Offline access | 100% | ✅ Complete |
 | Phase 6 | Member access control UI | 80% | 🔄 Settings page done; Phase 1 now live — needs E2E test of invite code + role enforcement |
-| Phase 7 | Icons + splash screen | 0% | ❌ Not started |
-| Phase 8 | Store deployment | 50% | 🔄 Web ready; Android blocked on Phase 4 device test + Phase 7 |
+| Phase 7 | Icons + splash screen | 100% | ✅ Complete — app icon + splash generated from `app-icon-1024.png`; adaptive icon foreground/background layers fixed; icon verified on Xiaomi M2102J20SG 2026-05-28 |
+| Phase 8 | Store deployment | 50% | 🔄 Web ready; Android blocked on Phase 4 E2E device test + signed APK |
 
 ---
 
@@ -110,7 +112,7 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 | 4 | ✅ | `api/push/subscribe-native.js` | — | Created with CORS headers, OPTIONS preflight, UUID validation. |
 | 5 | ✅ | `firebase-admin` + `api/_nativePush.js` | — | Installed; `sendNativePush()` functional with `sendEachForMulticast` + invalid token cleanup. |
 | 6 | ✅ | `package.json` | — | `@capacitor/network@8.0.1` installed. |
-| 7 | 🔵 | `package.json` | — | `@capacitor/splash-screen` not installed. Required for Phase 7. |
+| 7 | ✅ | `package.json` | — | `@capacitor/splash-screen@8.0.1` and `@capacitor/assets@3.0.5` installed. Phase 7 complete. |
 | 8 | 🟡 | `supabase-schema.sql` | — | Schema file still missing Phase 1 tables (`churches`, `church_members`), RLS functions, church-scoped policies, and `native_push_tokens`. Deployed DB is ahead of repo file — schema drift risk if DB is reset or cloned. |
 | 9 | 🟡 | `storage.js` — `getSongs`, `getSongById`, `getLineups` | — | Supabase queries fetch all rows without a `church_id` filter. Intentional until Phase 1 RLS is applied; after that, RLS enforces isolation automatically. |
 | 10 | 🟡 | `api/push/send-lineup.js`, `api/push/send-song.js` | — | Push sent to all active subscribers globally, not scoped to a church. After Phase 1, these need a `church_id` filter on `push_subscriptions` and `native_push_tokens` queries. |
@@ -227,12 +229,20 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 
 ---
 
-### Phase 7 — App icons and splash screen
+### Phase 7 — App icons and splash screen ✅ Complete
 
 | Item | Status | Notes |
 |---|---|---|
-| `@capacitor/splash-screen` install | ❌ Pending | Not in `package.json` |
-| `@capacitor/assets` icon generation | ❌ Pending | Source `public/icon-512.png` exists; run Android sizes only (iOS dropped) |
+| `@capacitor/splash-screen` install | ✅ Done | v8.0.1 installed |
+| `@capacitor/assets` install | ✅ Done | v3.0.5 installed |
+| Source icon | ✅ Done | `public/app-icon-1024.png` — 1024×1024px treble-clef-cross, white on blue circle, dark navy bg |
+| Android icon generation | ✅ Done | `npx @capacitor/assets generate --android` — 12 files (6 densities × flat + round), 161 KB |
+| Adaptive icon foreground fix | ✅ Done | `ic_launcher_foreground.png` at all 5 densities replaced (was old Capacitor blue-X from May 13); `capacitor-assets` only generates flat PNGs — adaptive foreground must be replaced manually |
+| `ic_launcher_background` color | ✅ Done | `values/ic_launcher_background.xml` updated `#FFFFFF` → `#0f172a`; `drawable/ic_launcher_background.xml` replaced with flat `#0f172a` fill |
+| `mipmap-anydpi-v26/ic_launcher.xml` | ✅ Unchanged | Correctly references `@color/ic_launcher_background` + `@mipmap/ic_launcher_foreground` — no change needed |
+| `capacitor.config.ts` SplashScreen | ✅ Done | `launchShowDuration: 1500`, `backgroundColor: '#0f172a'`, `showSpinner: false` |
+| `npx cap sync android` | ✅ Done | Clean sync; `@capacitor/splash-screen@8.0.1` detected |
+| Icon verified on device | ✅ Confirmed | Treble-clef-cross icon showing on Xiaomi M2102J20SG home screen 2026-05-28 |
 
 ---
 
@@ -311,7 +321,7 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 
 | Task | Status | Notes |
 |---|---|---|
-| `npm run build` | ✅ Pass | Clean; last confirmed 2026-05-25 |
+| `npm run build` | ✅ Pass | Clean; last confirmed 2026-05-28 |
 | `npm test` | ✅ Pass | 20 Vitest tests passing |
 | `npm run lint` | ✅ Pass | No errors |
 | `vercel dev` | ✅ Pass | Frontend + serverless API together |
@@ -332,7 +342,7 @@ Issues found during this review. Severity: 🔴 Bug / 🟡 Warning / 🔵 TODO
 
 5. **Confirm Supabase Auth dashboard settings** — email signups enabled, Site URL set to Vercel domain, `http://localhost:5173` in Redirect URLs.
 
-6. **Phase 7 — Icons + splash (Android only)** — `npm install @capacitor/splash-screen`, then `npx capacitor-assets generate` for Android sizes using `public/icon-512.png`.
+6. ~~**Phase 7 — Icons + splash**~~ ✅ Complete 2026-05-28 — icon confirmed on Xiaomi M2102J20SG.
 
 7. **Generate signed release APK** — Android Studio → Build → Generate Signed Bundle/APK.
 
