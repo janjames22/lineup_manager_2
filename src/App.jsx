@@ -27,6 +27,7 @@ import { NotificationsContext } from './contexts/NotificationsContext';
 import AuthPage from './pages/AuthPage';
 import JoinChurchPage from './pages/JoinChurchPage';
 import SettingsPage from './pages/SettingsPage';
+import PrivacyPage from './pages/PrivacyPage';
 import LoadingScreen from './components/LoadingScreen';
 import { supabase, getStoredSession } from './utils/supabase';
 import { clearChurchData, setActiveChurch, getActiveChurchId } from './utils/storage';
@@ -687,6 +688,7 @@ export default function App() {
     setUpdateMessage('');
   };
 
+  if (location.pathname === '/privacy') return <PrivacyPage />;
   if (authLoading) return <LoadingScreen />;
   if (!session) return <AuthPage />;
   if (!churchId) return (
@@ -749,6 +751,7 @@ export default function App() {
             <Route path="/lineups/:id/monitor" element={<LyricsMonitorPage />} />
             <Route path="/lineups/:id/print" element={<PrintExportView />} />
             <Route path="/settings" element={<SettingsPage session={session} churchId={churchId} />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           </NotificationsContext.Provider>

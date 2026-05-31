@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '../utils/supabase';
 import { Loader2 } from 'lucide-react';
 
@@ -101,6 +102,12 @@ export default function AuthPage() {
           >
             {mode === 'login' ? 'Sign up' : 'Sign in'}
           </button>
+        </p>
+
+        <p className="text-center text-xs text-slate-500">
+          <Link to="/privacy" className="hover:text-slate-400 underline underline-offset-2">
+            Privacy Policy
+          </Link>
         </p>
       </div>
     </div>

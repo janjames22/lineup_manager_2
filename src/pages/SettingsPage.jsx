@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Building2, Check, Copy, Users } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 
@@ -148,6 +149,12 @@ export default function SettingsPage({ session, churchId }) {
           )}
         </div>
       </section>
+
+      <p className="text-center text-xs text-slate-500 pb-2">
+        <Link to="/privacy" className="hover:text-slate-400 underline underline-offset-2">
+          Privacy Policy
+        </Link>
+      </p>
     </main>
   );
 }
