@@ -25,7 +25,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-2xl font-semibold text-white mt-8 mb-3">1. Introduction</h2>
             <p>
-              This Privacy Policy describes how <strong>Cabanatuan Community of Faith Baptist Church (CCFBC)</strong> ("we," "us," or "our") collects, uses, and protects your information when you use the <strong>Line Up Manager</strong> mobile application and web app (the "Service").
+              This Privacy Policy describes how <strong>CCFBC (Cabanatuan Community of Faith Baptist Church Inc.)</strong> ("we," "us," or "our") collects, uses, and protects your information when you use the <strong>Line Up Manager</strong> mobile application and web app (the "Service").
             </p>
             <p>By using the Service, you agree to the collection and use of information in accordance with this policy.</p>
           </section>
@@ -195,7 +195,7 @@ export default function PrivacyPage() {
             <h2 className="text-2xl font-semibold text-white mt-8 mb-3">14. Contact Us</h2>
             <p>If you have any questions about this Privacy Policy, please contact:</p>
             <div className="mt-3 p-4 bg-slate-800 rounded-lg">
-              <p><strong>Cabanatuan Community of Faith Baptist Church (CCFBC)</strong></p>
+              <p><strong>CCFBC (Cabanatuan Community of Faith Baptist Church Inc.)</strong></p>
               <p>
                 Email:{' '}
                 <a href="mailto:graza.janjames22@gmail.com" className="text-blue-400 hover:text-blue-300">
