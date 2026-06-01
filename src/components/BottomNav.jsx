@@ -1,5 +1,6 @@
 import { BookOpen, CalendarDays, Home, Plus, Settings } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
+import { useScrollDirection } from '../hooks/useScrollDirection';
 
 function UnreadBadge({ count }) {
   if (!count) return null;
@@ -15,8 +16,13 @@ function UnreadBadge({ count }) {
 }
 
 export default function BottomNav({ unreadNotificationCount = 0 }) {
+  const { isVisible } = useScrollDirection();
+
   return (
-    <nav className="bottom-nav relative fixed inset-x-0 bottom-0 z-50 grid w-full max-w-full grid-cols-[repeat(5,minmax(0,1fr))] items-center gap-0 overflow-hidden border-t border-slate-800/80 bg-slate-900/95 px-1.5 pt-1 backdrop-blur-md print:hidden lg:hidden">
+    <nav
+      className={`bottom-nav fixed inset-x-0 bottom-0 z-50 grid w-full max-w-full grid-cols-[repeat(5,minmax(0,1fr))] items-center gap-0 overflow-hidden border-t border-slate-800/80 bg-slate-900/95 px-1.5 pt-1 backdrop-blur-md transition-transform duration-300 ease-in-out print:hidden lg:hidden ${isVisible ? 'translate-y-0' : 'translate-y-full'}`}
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
       <NavLink to="/" end>
         {({ isActive }) => (
           <span className={`relative flex min-w-0 max-w-full flex-col items-center justify-center gap-0.5 py-1 transition-colors duration-200 ${isActive ? 'text-blue-400' : 'text-slate-500 hover:text-slate-300'}`}>
