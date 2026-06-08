@@ -60,23 +60,24 @@ export default function SettingsPage({ session, churchId, onAccountDeleted }) {
     setDeleteError('');
 
     try {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      const token = currentSession?.access_token;
-      if (!token) {
-        setDeleteError('Session expired. Please sign in again before deleting your account.');
-        setDeleteLoading(false);
-        return;
-      }
-
-      const response = await fetch('/api/user/delete-account', {
+      // supabase.functions.invoke automatically attaches the current session JWT
+      // as the Authorization header — no manual token extraction needed.
+      // Works in both the browser and the Capacitor Android webview.
+      const { error } = await supabase.functions.invoke('delete-account', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
       });
 
-      const body = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        setDeleteError(body.message || body.error || 'Failed to delete account. Please try again.');
+      if (error) {
+        // FunctionsHttpError carries a Response in error.context; extract the
+        // JSON body to surface the server's human-readable message.
+        let message = 'Failed to delete account. Please try again.';
+        try {
+          const body = await error.context?.json?.();
+          message = body?.message || body?.error || message;
+        } catch {
+          // context.json() unavailable (network/relay error) — use fallback message
+        }
+        setDeleteError(message);
         setDeleteLoading(false);
         return;
       }
