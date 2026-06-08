@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, Check, Copy, Users } from 'lucide-react';
+import { AlertTriangle, Building2, Check, Copy, Loader2, Users } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 
-export default function SettingsPage({ session, churchId }) {
+export default function SettingsPage({ session, churchId, onAccountDeleted }) {
   const [church, setChurch] = useState(null);
   const [members, setMembers] = useState([]);
   const [myRole, setMyRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     if (!supabase || !churchId) {
@@ -49,6 +53,42 @@ export default function SettingsPage({ session, churchId }) {
 
     fetchData();
   }, [churchId, session.user.id]);
+
+  async function handleDeleteAccount() {
+    if (!supabase) return;
+    setDeleteLoading(true);
+    setDeleteError('');
+
+    try {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      const token = currentSession?.access_token;
+      if (!token) {
+        setDeleteError('Session expired. Please sign in again before deleting your account.');
+        setDeleteLoading(false);
+        return;
+      }
+
+      const response = await fetch('/api/user/delete-account', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const body = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setDeleteError(body.message || body.error || 'Failed to delete account. Please try again.');
+        setDeleteLoading(false);
+        return;
+      }
+
+      // Mark the session as deleted so AuthPage can show the confirmation banner.
+      sessionStorage.setItem('account-deleted', '1');
+      onAccountDeleted?.();
+    } catch {
+      setDeleteError('Network error. Please check your connection and try again.');
+      setDeleteLoading(false);
+    }
+  }
 
   async function copyInviteCode() {
     if (!church?.invite_code) return;
@@ -150,11 +190,86 @@ export default function SettingsPage({ session, churchId }) {
         </div>
       </section>
 
+      <section className="space-y-3">
+        <div className="flex items-center gap-2">
+          <AlertTriangle size={18} className="text-red-500" aria-hidden="true" />
+          <h2 className="text-base font-extrabold text-red-400">Danger Zone</h2>
+        </div>
+        <div className="rounded-2xl border border-red-900/50 bg-red-950/10 p-5 space-y-3">
+          <p className="text-sm text-slate-400">
+            Permanently delete your account and all associated personal data.
+            This cannot be undone.
+          </p>
+          <button
+            type="button"
+            className="btn-danger w-full sm:w-auto"
+            onClick={() => { setShowDeleteDialog(true); setDeleteError(''); }}
+          >
+            Delete My Account
+          </button>
+        </div>
+      </section>
+
       <p className="text-center text-xs text-slate-500 pb-2">
         <Link to="/privacy" className="hover:text-slate-400 underline underline-offset-2">
           Privacy Policy
         </Link>
       </p>
+
+      {showDeleteDialog && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+          onClick={(e) => { if (e.target === e.currentTarget && !deleteLoading) setShowDeleteDialog(false); }}
+        >
+          <div className="w-full max-w-sm rounded-2xl border border-red-900/60 bg-slate-900 p-6 space-y-5 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <AlertTriangle size={22} className="shrink-0 text-red-400 mt-0.5" aria-hidden="true" />
+              <div>
+                <h3 className="text-lg font-extrabold text-white">Delete Account</h3>
+                <p className="text-sm text-slate-400 mt-1">This action is permanent and cannot be undone.</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-slate-800/60 border border-slate-700/60 px-4 py-3 text-sm text-slate-300 space-y-1">
+              <p className="font-bold text-slate-200 mb-2">The following will be deleted:</p>
+              <ul className="space-y-1 list-disc list-inside text-slate-400">
+                <li>Your account (email &amp; password)</li>
+                <li>Your display name</li>
+                <li>Your church membership and role</li>
+                <li>Your schedule and lineup data</li>
+                <li>Your push notification tokens</li>
+              </ul>
+            </div>
+
+            {deleteError && (
+              <p className="rounded-xl bg-red-950/40 border border-red-500/30 px-4 py-3 text-sm text-red-300">
+                {deleteError}
+              </p>
+            )}
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <button
+                type="button"
+                className="btn-secondary flex-1"
+                onClick={() => setShowDeleteDialog(false)}
+                disabled={deleteLoading}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-danger flex-1"
+                onClick={handleDeleteAccount}
+                disabled={deleteLoading}
+              >
+                {deleteLoading
+                  ? <span className="flex items-center justify-center gap-2"><Loader2 className="animate-spin" size={16} /> Deleting…</span>
+                  : 'Delete my account'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

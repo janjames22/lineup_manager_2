@@ -11,6 +11,9 @@ export default function AuthPage() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const accountDeleted = sessionStorage.getItem('account-deleted') === '1';
+  if (accountDeleted) sessionStorage.removeItem('account-deleted');
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
@@ -34,6 +37,11 @@ export default function AuthPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
       <div className="w-full max-w-sm bg-slate-800 rounded-2xl p-6 space-y-5">
+        {accountDeleted && (
+          <p className="rounded-xl bg-green-950/40 border border-green-500/30 px-4 py-3 text-sm text-green-300">
+            Your account has been deleted.
+          </p>
+        )}
         <div className="text-center">
           <h1 className="text-white text-xl font-black tracking-tight">Line Up Manager</h1>
           <p className="text-slate-400 text-sm mt-1">

@@ -28,6 +28,7 @@ import AuthPage from './pages/AuthPage';
 import JoinChurchPage from './pages/JoinChurchPage';
 import SettingsPage from './pages/SettingsPage';
 import PrivacyPage from './pages/PrivacyPage';
+import DeleteAccountPage from './pages/DeleteAccountPage';
 import LoadingScreen from './components/LoadingScreen';
 import { supabase, getStoredSession } from './utils/supabase';
 import { clearChurchData, setActiveChurch, getActiveChurchId } from './utils/storage';
@@ -679,6 +680,17 @@ export default function App() {
     // onAuthStateChange fires with session=null → clears remaining React state
   }
 
+  function handleAccountDeleted() {
+    // The auth account is already gone server-side. Clear local state directly
+    // rather than waiting for onAuthStateChange, which may not fire reliably
+    // for a deleted (not merely signed-out) user.
+    clearChurchData();
+    setSession(null);
+    setChurchId(null);
+    setAuthLoading(false);
+    supabase?.auth.signOut().catch(() => {});
+  }
+
   const closeUpdatePrompt = () => {
     setOfflineReady(false);
     setNeedUpdate(false);
@@ -689,6 +701,7 @@ export default function App() {
   };
 
   if (location.pathname === '/privacy') return <PrivacyPage />;
+  if (location.pathname === '/delete-account') return <DeleteAccountPage />;
   if (authLoading) return <LoadingScreen />;
   if (!session) return <AuthPage />;
   if (!churchId) return (
@@ -750,8 +763,9 @@ export default function App() {
             <Route path="/lineups/:id/edit" element={<LineupForm />} />
             <Route path="/lineups/:id/monitor" element={<LyricsMonitorPage />} />
             <Route path="/lineups/:id/print" element={<PrintExportView />} />
-            <Route path="/settings" element={<SettingsPage session={session} churchId={churchId} />} />
+            <Route path="/settings" element={<SettingsPage session={session} churchId={churchId} onAccountDeleted={handleAccountDeleted} />} />
             <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/delete-account" element={<DeleteAccountPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           </NotificationsContext.Provider>
